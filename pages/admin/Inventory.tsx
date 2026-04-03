@@ -2,7 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
-import { MOCK_MATERIALS, MOCK_EQUIPMENT } from '../../constants';
+import { db } from '../../src/firebase';
+import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { Material, Equipment } from '../../types';
 import { 
   AlertTriangle, 
@@ -29,12 +31,31 @@ const Inventory: React.FC = () => {
 
   // --- State Management ---
   const [activeTab, setActiveTab] = useState<'material' | 'alat'>('material');
-  const [materials, setMaterials] = useState<Material[]>(MOCK_MATERIALS);
-  const [equipment, setEquipment] = useState<Equipment[]>(MOCK_EQUIPMENT);
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string, name: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const qMaterials = query(collection(db, 'materials'));
+    const unsubscribeMaterials = onSnapshot(qMaterials, (snapshot) => {
+      setMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Material)));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'materials'));
+
+    const qEquipment = query(collection(db, 'equipment'));
+    const unsubscribeEquipment = onSnapshot(qEquipment, (snapshot) => {
+      setEquipment(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Equipment)));
+      setLoading(false);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'equipment'));
+
+    return () => {
+      unsubscribeMaterials();
+      unsubscribeEquipment();
+    };
+  }, []);
 
   // Toast State
   const [toast, setToast] = useState<{ message: string; visible: boolean } | null>(null);
@@ -170,55 +191,62 @@ const Inventory: React.FC = () => {
     setItemToDelete({ id: item.id, name: item.name });
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (!itemToDelete) return;
     const typeLabel = activeTab === 'material' ? 'Material' : 'Peralatan';
-    if (activeTab === 'material') {
-      setMaterials(prev => prev.filter(m => m.id !== itemToDelete.id));
-    } else {
-      setEquipment(prev => prev.filter(e => e.id !== itemToDelete.id));
+    const collectionName = activeTab === 'material' ? 'materials' : 'equipment';
+    
+    try {
+      await deleteDoc(doc(db, collectionName, itemToDelete.id));
+      triggerToast(`${typeLabel} berhasil dihapus`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `${collectionName}/${itemToDelete.id}`);
     }
-    triggerToast(`${typeLabel} berhasil dihapus`);
     setItemToDelete(null);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const typeLabel = activeTab === 'material' ? 'Material' : 'Peralatan';
-    if (activeTab === 'material') {
-      const newMaterial: Material = {
-        id: isEditing && currentId ? currentId : `m-${Date.now()}`,
-        name: formData.name,
-        unit: formData.unit,
-        currentStock: Number(formData.currentStock),
-        minThreshold: Number(formData.minThreshold),
-        lastUpdated: new Date().toISOString().split('T')[0]
-      };
-      if (isEditing) {
-        setMaterials(prev => prev.map(m => m.id === currentId ? newMaterial : m));
-        triggerToast(`${typeLabel} berhasil diperbarui`);
+    const collectionName = activeTab === 'material' ? 'materials' : 'equipment';
+
+    try {
+      if (activeTab === 'material') {
+        const materialData = {
+          name: formData.name,
+          unit: formData.unit,
+          currentStock: Number(formData.currentStock),
+          minThreshold: Number(formData.minThreshold),
+          lastUpdated: new Date().toISOString().split('T')[0]
+        };
+
+        if (isEditing && currentId) {
+          await updateDoc(doc(db, 'materials', currentId), materialData);
+          triggerToast(`${typeLabel} berhasil diperbarui`);
+        } else {
+          await addDoc(collection(db, 'materials'), materialData);
+          triggerToast(`${typeLabel} berhasil ditambahkan`);
+        }
       } else {
-        setMaterials(prev => [...prev, newMaterial]);
-        triggerToast(`${typeLabel} berhasil ditambahkan`);
+        const equipmentData = {
+          name: formData.name,
+          type: formData.type,
+          status: formData.status as 'Tersedia' | 'Perbaikan',
+          category: formData.category
+        };
+
+        if (isEditing && currentId) {
+          await updateDoc(doc(db, 'equipment', currentId), equipmentData);
+          triggerToast(`${typeLabel} berhasil diperbarui`);
+        } else {
+          await addDoc(collection(db, 'equipment'), equipmentData);
+          triggerToast(`${typeLabel} berhasil ditambahkan`);
+        }
       }
-    } else {
-      // Fixed: added category to newEquipment object
-      const newEquipment: Equipment = {
-        id: isEditing && currentId ? currentId : `e-${Date.now()}`,
-        name: formData.name,
-        type: formData.type,
-        status: formData.status as 'Tersedia' | 'Perbaikan',
-        category: formData.category
-      };
-      if (isEditing) {
-        setEquipment(prev => prev.map(e => e.id === currentId ? newEquipment : e));
-        triggerToast(`${typeLabel} berhasil diperbarui`);
-      } else {
-        setEquipment(prev => [...prev, newEquipment]);
-        triggerToast(`${typeLabel} berhasil ditambahkan`);
-      }
+      setIsModalOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, isEditing ? OperationType.UPDATE : OperationType.CREATE, collectionName);
     }
-    setIsModalOpen(false);
   };
 
   const getStockStatus = (current: number, min: number) => {

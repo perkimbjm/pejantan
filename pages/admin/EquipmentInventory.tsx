@@ -4,6 +4,7 @@ import AdminLayout from './AdminLayout';
 import { Equipment } from '../../types';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   Plus, 
   Pencil, 
@@ -26,6 +27,8 @@ const EquipmentInventory: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Equipment));
       setEquipment(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'equipment');
     });
     return () => unsubscribe();
   }, []);
@@ -57,9 +60,17 @@ const EquipmentInventory: React.FC = () => {
     
     try {
       if (isEditing && currentId) {
-        await updateDoc(doc(db, 'equipment', currentId), itemData);
+        try {
+          await updateDoc(doc(db, 'equipment', currentId), itemData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `equipment/${currentId}`);
+        }
       } else {
-        await addDoc(collection(db, 'equipment'), itemData);
+        try {
+          await addDoc(collection(db, 'equipment'), itemData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'equipment');
+        }
       }
       triggerToast('Data alat berhasil disimpan');
       setIsModalOpen(false);
@@ -84,7 +95,11 @@ const EquipmentInventory: React.FC = () => {
   const executeDelete = async (id: string) => {
     if (!confirm('Hapus data alat ini?')) return;
     try {
-      await deleteDoc(doc(db, 'equipment', id));
+      try {
+        await deleteDoc(doc(db, 'equipment', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `equipment/${id}`);
+      }
       triggerToast('Data alat dihapus');
     } catch (error) {
       console.error('Error deleting equipment:', error);

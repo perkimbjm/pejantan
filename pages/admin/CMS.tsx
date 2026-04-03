@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import { db, storage } from '../../src/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Save, Loader2, Image as ImageIcon, Video } from 'lucide-react';
 
@@ -13,7 +14,14 @@ const CMS: React.FC = () => {
   useEffect(() => {
     const fetchContent = async () => {
       const docRef = doc(db, 'cms', 'hero');
-      const docSnap = await getDoc(docRef);
+      let docSnap;
+      try {
+        docSnap = await getDoc(docRef);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, 'cms/hero');
+        setLoading(false);
+        return;
+      }
       if (docSnap.exists()) {
         setHero(docSnap.data() as any);
       }
@@ -24,9 +32,13 @@ const CMS: React.FC = () => {
 
   const handleSave = async () => {
     setSaving(true);
-    await setDoc(doc(db, 'cms', 'hero'), hero);
+    try {
+      await setDoc(doc(db, 'cms', 'hero'), hero);
+      alert('Content saved!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'cms/hero');
+    }
     setSaving(false);
-    alert('Content saved!');
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -5,6 +5,7 @@ import { Complaint, ComplaintStatus } from '../../types';
 import StatusBadge from '../../components/StatusBadge';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query, updateDoc, doc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   Search, 
   Filter, 
@@ -32,6 +33,8 @@ const ComplaintList: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Complaint));
       setComplaints(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'complaints');
     });
     return () => unsubscribe();
   }, []);
@@ -89,14 +92,18 @@ const ComplaintList: React.FC = () => {
     if (!selectedComplaint) return;
 
     try {
-      await updateDoc(doc(db, 'complaints', selectedComplaint.id!), {
-        status: processForm.status,
-        rejectionReason: processForm.status === ComplaintStatus.REJECTED ? processForm.rejectionReason : undefined,
-        surveyDate: processForm.status === ComplaintStatus.SURVEY ? processForm.surveyDate : selectedComplaint.surveyDate,
-        completionDate: processForm.status === ComplaintStatus.COMPLETED ? processForm.completionDate : selectedComplaint.completionDate,
-        notes: processForm.notes || undefined,
-        dateUpdated: new Date().toISOString()
-      });
+      try {
+        await updateDoc(doc(db, 'complaints', selectedComplaint.id!), {
+          status: processForm.status,
+          rejectionReason: processForm.status === ComplaintStatus.REJECTED ? processForm.rejectionReason : undefined,
+          surveyDate: processForm.status === ComplaintStatus.SURVEY ? processForm.surveyDate : selectedComplaint.surveyDate,
+          completionDate: processForm.status === ComplaintStatus.COMPLETED ? processForm.completionDate : selectedComplaint.completionDate,
+          notes: processForm.notes || undefined,
+          dateUpdated: new Date().toISOString()
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `complaints/${selectedComplaint.id}`);
+      }
       setIsProcessOpen(false);
       setSelectedComplaint(null);
       triggerToast('Aduan berhasil diproses dan diperbarui');

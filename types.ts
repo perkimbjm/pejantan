@@ -62,7 +62,16 @@ export interface Worker {
   name: string;
   category: RoadType;
   dailyRate: number;
-  otRate: number;
+  otRate1: number;
+  otRate2: number;
+  otRate3: number;
+}
+
+export interface Holiday {
+  id: string;
+  date: string; // ISO format YYYY-MM-DD
+  name: string;
+  type: 'National' | 'Cuti Bersama';
 }
 
 export interface AttendanceRecord {
@@ -86,4 +95,32 @@ export interface StatMetric {
   value: string | number;
   change?: string;
   trend?: 'up' | 'down' | 'neutral';
+}
+
+export interface Permission {
+  id: string;
+  name: string;
+  code: string;
+  description: string;
+  feature: string;
+  action: 'create' | 'read' | 'update' | 'delete' | 'reset_password' | 'ban_user';
+}
+
+export interface Role {
+  id: string;
+  name: string;
+  description: string;
+  permissionIds: string[];
+}
+
+export interface AppUser {
+  id: string;
+  uid: string;
+  email: string;
+  username?: string;
+  phone?: string;
+  displayName?: string;
+  roleIds: string[];
+  isBanned?: boolean;
+  createdAt: string;
 }

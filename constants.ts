@@ -29,11 +29,11 @@ export const MOCK_EQUIPMENT: Equipment[] = [
 ];
 
 export const MOCK_WORKERS: Worker[] = [
-  { id: 'w1', name: 'Ahmad Subarjo', category: RoadType.JALAN, dailyRate: 150000, otRate: 75000 },
-  { id: 'w2', name: 'Siti Rohani', category: RoadType.JALAN, dailyRate: 150000, otRate: 75000 },
-  { id: 'w3', name: 'Bambang Tri', category: RoadType.JALAN, dailyRate: 150000, otRate: 75000 },
-  { id: 'w4', name: 'Heri Kusuma', category: RoadType.JEMBATAN, dailyRate: 175000, otRate: 85000 },
-  { id: 'w5', name: 'Zulkipli', category: RoadType.JEMBATAN, dailyRate: 175000, otRate: 85000 },
+  { id: 'w1', name: 'Ahmad Subarjo', category: RoadType.JALAN, dailyRate: 170000, otRate1: 70000, otRate2: 120000, otRate3: 170000 },
+  { id: 'w2', name: 'Siti Rohani', category: RoadType.JALAN, dailyRate: 170000, otRate1: 70000, otRate2: 120000, otRate3: 170000 },
+  { id: 'w3', name: 'Bambang Tri', category: RoadType.JALAN, dailyRate: 170000, otRate1: 70000, otRate2: 120000, otRate3: 170000 },
+  { id: 'w4', name: 'Heri Kusuma', category: RoadType.JEMBATAN, dailyRate: 170000, otRate1: 70000, otRate2: 120000, otRate3: 170000 },
+  { id: 'w5', name: 'Zulkipli', category: RoadType.JEMBATAN, dailyRate: 170000, otRate1: 70000, otRate2: 120000, otRate3: 170000 },
 ];
 
 export const MOCK_ATTENDANCE: AttendanceRecord[] = [

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell
@@ -54,16 +55,22 @@ const Reports: React.FC = () => {
     const qCommitments = query(collection(db, 'commitments'));
     const unsubscribeCommitments = onSnapshot(qCommitments, (snapshot) => {
       setCommitments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'commitments');
     });
 
     const qEpurchasing = query(collection(db, 'epurchasing'));
     const unsubscribeEpurchasing = onSnapshot(qEpurchasing, (snapshot) => {
       setEpurchasing(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'epurchasing');
     });
 
     const qCostReports = query(collection(db, 'costReports'));
     const unsubscribeCostReports = onSnapshot(qCostReports, (snapshot) => {
       setCostReports(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'costReports');
     });
 
     return () => {

@@ -15,7 +15,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Hammer,
-  Users
+  Users,
+  Shield,
+  Key
 } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -37,6 +39,9 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isCollapsed, onToggleCollap
     { name: 'Tenaga Kerja', path: '/admin/workforce', icon: <Users size={20} /> },
     { name: 'Laporan & Biaya', path: '/admin/reports', icon: <BarChart3 size={20} /> },
     { name: 'CMS Landing Page', path: '/admin/cms', icon: <Settings size={20} /> },
+    { name: 'Manajemen User', path: '/admin/users', icon: <Users size={20} /> },
+    { name: 'Manajemen Role', path: '/admin/roles', icon: <Shield size={20} /> },
+    { name: 'Manajemen Izin', path: '/admin/permissions', icon: <Key size={20} /> },
   ];
 
   const isActive = (path: string) => {

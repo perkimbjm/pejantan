@@ -1,6 +1,9 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
+import { db } from '../../src/firebase';
+import { collection, onSnapshot, query } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   BarChart, 
   Bar, 
@@ -66,6 +69,49 @@ const Dashboard: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(currentYear.toString());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth.toString());
 
+  const [complaints, setComplaints] = useState<any[]>([]);
+  const [materials, setMaterials] = useState<any[]>([]);
+  const [equipment, setEquipment] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const qComplaints = query(collection(db, 'complaints'));
+    const unsubscribeComplaints = onSnapshot(qComplaints, (snapshot) => {
+      setComplaints(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'complaints'));
+
+    const qMaterials = query(collection(db, 'materials'));
+    const unsubscribeMaterials = onSnapshot(qMaterials, (snapshot) => {
+      setMaterials(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'materials'));
+
+    const qEquipment = query(collection(db, 'equipment'));
+    const unsubscribeEquipment = onSnapshot(qEquipment, (snapshot) => {
+      setEquipment(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'equipment'));
+
+    const qWorkers = query(collection(db, 'workers'));
+    const unsubscribeWorkers = onSnapshot(qWorkers, (snapshot) => {
+      setWorkers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'workers'));
+
+    const qNotifications = query(collection(db, 'notifications'));
+    const unsubscribeNotifications = onSnapshot(qNotifications, (snapshot) => {
+      setNotifications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'notifications'));
+
+    return () => {
+      unsubscribeComplaints();
+      unsubscribeMaterials();
+      unsubscribeEquipment();
+      unsubscribeWorkers();
+      unsubscribeNotifications();
+    };
+  }, []);
+
   const months = [
     { value: 'all', label: 'Sepanjang Tahun' },
     { value: '1', label: 'Januari' },
@@ -96,27 +142,37 @@ const Dashboard: React.FC = () => {
     return `(${monthLabel} ${selectedYear})`;
   }, [selectedMonth, selectedYear]);
 
-  const stats = useMemo(() => ({
-    total: selectedMonth === 'all' ? 458 : 42,
-    diterima: selectedMonth === 'all' ? 145 : 12,
-    tidakDiterima: selectedMonth === 'all' ? 62 : 4,
-    disurvey: selectedMonth === 'all' ? 98 : 10,
-    selesai: selectedMonth === 'all' ? 153 : 16,
-    categoryJalan: selectedMonth === 'all' ? 320 : 30,
-    categoryJembatan: selectedMonth === 'all' ? 138 : 12,
-  }), [selectedMonth, selectedYear]);
+  const stats = useMemo(() => {
+    const filteredComplaints = complaints.filter(c => {
+      if (!c.dateCreated) return false;
+      const date = new Date(c.dateCreated);
+      const yearMatch = date.getFullYear().toString() === selectedYear;
+      const monthMatch = selectedMonth === 'all' || (date.getMonth() + 1).toString() === selectedMonth;
+      return yearMatch && monthMatch;
+    });
 
-  const statusPieData = [
+    return {
+      total: filteredComplaints.length,
+      diterima: filteredComplaints.filter(c => c.status === 'RECEIVED').length,
+      tidakDiterima: filteredComplaints.filter(c => c.status === 'REJECTED').length,
+      disurvey: filteredComplaints.filter(c => c.status === 'SURVEY').length,
+      selesai: filteredComplaints.filter(c => c.status === 'COMPLETED').length,
+      categoryJalan: filteredComplaints.filter(c => c.category === 'Jalan').length,
+      categoryJembatan: filteredComplaints.filter(c => c.category === 'Jembatan').length,
+    };
+  }, [complaints, selectedYear, selectedMonth]);
+
+  const statusPieData = useMemo(() => [
     { name: 'Diterima', value: stats.diterima },
     { name: 'Disurvey', value: stats.disurvey },
     { name: 'Selesai', value: stats.selesai },
     { name: 'Tidak diterima', value: stats.tidakDiterima },
-  ];
+  ], [stats]);
 
-  const categoryDoughnutData = [
+  const categoryDoughnutData = useMemo(() => [
     { name: 'Jalan', value: stats.categoryJalan },
     { name: 'Jembatan', value: stats.categoryJembatan },
-  ];
+  ], [stats]);
 
   const tooltipStyle = {
     backgroundColor: '#0f172a',
@@ -313,31 +369,31 @@ const Dashboard: React.FC = () => {
               <button className="text-[9px] sm:text-[10px] text-blue-600 font-black uppercase tracking-widest hover:underline">Semua</button>
            </div>
            <div className="divide-y divide-slate-100 dark:divide-slate-700 h-[320px] overflow-y-auto">
-              {[
-                { title: 'Jl. Haryono MT', user: 'Admin', action: 'Update stok', time: '2 jam lalu', status: 'Selesai' },
-                { title: 'Jembatan Dewi', user: 'Tim Teknis', action: 'Upload survey', time: '4 jam lalu', status: 'Disurvey' },
-                { title: 'Pagar Jembatan', user: 'Sistem', action: 'Aduan masuk', time: '6 jam lalu', status: 'Diterima' },
-                { title: 'Cold Mix Q1', user: 'Admin', action: 'PO Baru', time: '1 hari lalu', status: 'Selesai' }
-              ].map((activity, i) => (
+              {notifications.slice(0, 10).map((notif, i) => (
                  <div key={i} className="px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
                     <div className="flex items-center justify-between mb-1">
-                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate max-w-[150px]">{activity.title}</h4>
+                       <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate max-w-[150px]">{notif.title}</h4>
                        <span className={`text-[8px] sm:text-[9px] font-black uppercase px-1.5 py-0.5 rounded-md ${
-                          activity.status === 'Selesai' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                          activity.status === 'Disurvey' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          notif.type === 'success' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                          notif.type === 'warning' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
                           'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
                        }`}>
-                          {activity.status}
+                          {notif.type}
                        </span>
                     </div>
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-300">
-                       <span className="font-bold text-slate-700 dark:text-slate-200">{activity.user}</span> {activity.action}.
+                       {notif.message}
                     </p>
                     <div className="mt-1.5 flex items-center text-[9px] text-slate-400 dark:text-slate-300 font-black uppercase tracking-widest">
-                       {activity.time}
+                       {new Date(notif.timestamp).toLocaleString('id-ID')}
                     </div>
                  </div>
               ))}
+              {notifications.length === 0 && (
+                <div className="p-10 text-center text-slate-400 text-xs font-bold uppercase tracking-widest">
+                  Tidak ada aktivitas
+                </div>
+              )}
            </div>
         </div>
       </div>

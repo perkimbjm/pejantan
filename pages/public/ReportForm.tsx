@@ -19,6 +19,8 @@ import {
   LocateFixed
 } from 'lucide-react';
 import PublicNavbar from '../../components/PublicNavbar';
+import { db } from '../../src/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { RoadType } from '../../types';
 // @ts-ignore
 import EXIF from 'exif-js';
@@ -214,7 +216,7 @@ const ReportForm: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -222,11 +224,33 @@ const ReportForm: React.FC = () => {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
       const newTicketId = `PJJ-2024-${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
+      
+      // In a real app, we would upload the file to Firebase Storage first
+      // For now, we'll store the file name or a placeholder
+      await addDoc(collection(db, 'complaints'), {
+        ticketNumber: newTicketId,
+        reporterName: formData.name,
+        reporterPhone: formData.phone,
+        location: formData.locationDesc,
+        lat: location?.lat,
+        lng: location?.lng,
+        description: formData.description,
+        roadType: formData.roadType,
+        status: 'Menunggu',
+        dateSubmitted: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        photoUrl: 'https://picsum.photos/seed/report/800/600' // Placeholder
+      });
+
       setTicketNumber(newTicketId);
-    }, 2000);
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      alert("Gagal mengirim laporan. Silakan coba lagi.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

@@ -4,6 +4,7 @@ import AdminLayout from './AdminLayout';
 import { Material } from '../../types';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   AlertTriangle, 
   AlertCircle, 
@@ -29,6 +30,8 @@ const MaterialInventory: React.FC = () => {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Material));
       setMaterials(data);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'materials');
     });
     return () => unsubscribe();
   }, []);
@@ -124,7 +127,11 @@ const MaterialInventory: React.FC = () => {
   const executeDelete = async () => {
     if (!itemToDelete) return;
     try {
-      await deleteDoc(doc(db, 'materials', itemToDelete.id));
+      try {
+        await deleteDoc(doc(db, 'materials', itemToDelete.id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `materials/${itemToDelete.id}`);
+      }
       triggerToast(`Material berhasil dihapus`);
       setItemToDelete(null);
     } catch (error) {
@@ -145,9 +152,17 @@ const MaterialInventory: React.FC = () => {
     
     try {
       if (isEditing && currentId) {
-        await updateDoc(doc(db, 'materials', currentId), materialData);
+        try {
+          await updateDoc(doc(db, 'materials', currentId), materialData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `materials/${currentId}`);
+        }
       } else {
-        await addDoc(collection(db, 'materials'), materialData);
+        try {
+          await addDoc(collection(db, 'materials'), materialData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'materials');
+        }
       }
       triggerToast(`Stok berhasil diperbarui`);
       setIsModalOpen(false);
@@ -209,12 +224,12 @@ const MaterialInventory: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <p className={`text-xs font-black uppercase ${isCritical ? 'text-red-600' : 'text-slate-900 dark:text-white'}`}>{item.name}</p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-300 font-bold uppercase mt-1">Min: {item.minThreshold} {item.unit}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-200 font-bold uppercase mt-1">Min: {item.minThreshold} {item.unit}</p>
                   </div>
                   <div className="flex items-center gap-8">
                     <div className="text-right">
                        <p className={`text-2xl font-black ${item.currentStock === 0 ? 'text-red-600 animate-pulse' : isCritical ? 'text-orange-600' : 'text-slate-900 dark:text-white'}`}>{item.currentStock}</p>
-                       <p className="text-[9px] text-slate-400 dark:text-slate-300 font-black uppercase tracking-widest">{item.unit}</p>
+                       <p className="text-[9px] text-slate-400 dark:text-slate-200 font-black uppercase tracking-widest">{item.unit}</p>
                     </div>
                     <div className="flex gap-2">
                        <button onClick={() => openEditModal(item)} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Pencil size={14}/></button>
@@ -233,14 +248,14 @@ const MaterialInventory: React.FC = () => {
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
           <div className="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-2xl animate-in zoom-in-95">
              <h3 className="text-lg font-black uppercase mb-6 text-slate-900 dark:text-white">{isEditing ? 'Edit' : 'Tambah'} Material</h3>
-             <form onSubmit={handleSave} className="space-y-4">
-                <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Nama Material</label><input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full mt-1 rounded-xl border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900"/></div>
+             <form onSubmit={handleSave} className="p-8 space-y-4">
+                <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Nama Material</label><input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full mt-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"/></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Stok</label><input type="number" required value={formData.currentStock} onChange={e => setFormData({...formData, currentStock: Number(e.target.value)})} className="w-full mt-1 rounded-xl border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900"/></div>
-                  <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Satuan</label><input type="text" required value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full mt-1 rounded-xl border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900"/></div>
+                  <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Stok</label><input type="number" required value={formData.currentStock} onChange={e => setFormData({...formData, currentStock: Number(e.target.value)})} className="w-full mt-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"/></div>
+                  <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Satuan</label><input type="text" required value={formData.unit} onChange={e => setFormData({...formData, unit: e.target.value})} className="w-full mt-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"/></div>
                 </div>
                 {/* Fix: Bind input to minThreshold instead of currentStock */}
-                <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Batas Minimum</label><input type="number" required value={formData.minThreshold} onChange={e => setFormData({...formData, minThreshold: Number(e.target.value)})} className="w-full mt-1 rounded-xl border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900"/></div>
+                <div><label className="text-[10px] font-black text-slate-500 dark:text-slate-300 uppercase">Batas Minimum</label><input type="number" required value={formData.minThreshold} onChange={e => setFormData({...formData, minThreshold: Number(e.target.value)})} className="w-full mt-1 px-4 py-3 rounded-xl border border-slate-300 dark:border-slate-600 text-sm font-bold bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"/></div>
                 <div className="pt-4 flex gap-3"><button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Batal</button><button type="submit" className="flex-1 py-3 text-[10px] font-black uppercase bg-blue-600 text-white rounded-xl shadow-lg">Simpan</button></div>
              </form>
           </div>

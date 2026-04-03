@@ -18,6 +18,9 @@ import MapDistribution from './pages/admin/MapDistribution';
 import Reports from './pages/admin/Reports';
 import Settings from './pages/admin/Settings';
 import CMS from './pages/admin/CMS';
+import UserManagement from './pages/admin/UserManagement';
+import RoleManagement from './pages/admin/RoleManagement';
+import PermissionManagement from './pages/admin/PermissionManagement';
 
 const App: React.FC = () => {
   return (
@@ -39,6 +42,9 @@ const App: React.FC = () => {
           <Route path="/admin/reports" element={<Reports />} />
           <Route path="/admin/settings" element={<Settings />} />
           <Route path="/admin/cms" element={<CMS />} />
+          <Route path="/admin/users" element={<UserManagement />} />
+          <Route path="/admin/roles" element={<RoleManagement />} />
+          <Route path="/admin/permissions" element={<PermissionManagement />} />
           
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

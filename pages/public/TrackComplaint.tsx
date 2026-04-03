@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Search, AlertCircle } from 'lucide-react';
 import PublicNavbar from '../../components/PublicNavbar';
-import { MOCK_COMPLAINTS } from '../../constants';
+import { db } from '../../src/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Complaint } from '../../types';
 import StatusBadge from '../../components/StatusBadge';
 
@@ -9,13 +10,31 @@ const TrackComplaint: React.FC = () => {
   const [ticketId, setTicketId] = useState('');
   const [result, setResult] = useState<Complaint | null | undefined>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!ticketId.trim()) return;
+    
+    setLoading(true);
     setHasSearched(true);
-    // Simulate search from mock data
-    const found = MOCK_COMPLAINTS.find(c => c.ticketNumber.toLowerCase() === ticketId.toLowerCase());
-    setResult(found);
+    
+    try {
+      const q = query(collection(db, 'complaints'), where('ticketNumber', '==', ticketId.trim()));
+      const querySnapshot = await getDocs(q);
+      
+      if (!querySnapshot.empty) {
+        const doc = querySnapshot.docs[0];
+        setResult({ id: doc.id, ...doc.data() } as Complaint);
+      } else {
+        setResult(undefined);
+      }
+    } catch (error) {
+      console.error("Error searching complaint:", error);
+      setResult(undefined);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -41,8 +60,8 @@ const TrackComplaint: React.FC = () => {
                 placeholder="Contoh: PJJ-2023-001" 
               />
             </div>
-            <button type="submit" className="-ml-px relative inline-flex items-center space-x-2 px-6 py-4 border border-transparent text-sm font-bold rounded-r-xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors">
-              Cari
+            <button type="submit" disabled={loading} className="-ml-px relative inline-flex items-center space-x-2 px-6 py-4 border border-transparent text-sm font-bold rounded-r-xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900 transition-colors disabled:opacity-50">
+              {loading ? 'Mencari...' : 'Cari'}
             </button>
           </form>
         </div>

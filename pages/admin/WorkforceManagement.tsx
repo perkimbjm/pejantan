@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
-import { Worker, AttendanceRecord, RoadType } from '../../types';
-import { db } from '../../src/firebase';
-import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { Worker, AttendanceRecord, RoadType, Holiday } from '../../types';
+import { db, auth } from '../../src/firebase';
+import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocFromServer } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   Users, 
   Calendar, 
@@ -20,7 +21,8 @@ import {
   CheckCircle2,
   Loader2,
   AlertTriangle,
-  FileText
+  FileText,
+  Trash
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -39,7 +41,9 @@ const WorkforceManagement: React.FC = () => {
   const [selectedWeek, setSelectedWeek] = useState<number | 'all'>(1);
   const [workers, setWorkers] = useState<Worker[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [holidays, setHolidays] = useState<Holiday[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -48,23 +52,70 @@ const WorkforceManagement: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'cms', 'connection-test'));
+      } catch (error: any) {
+        if (error.message?.includes('the client is offline')) {
+          console.error("Firebase connection test failed: client is offline. Check configuration.");
+        }
+      }
+    };
+    testConnection();
+
     const qWorkers = query(collection(db, 'workers'));
     const unsubscribeWorkers = onSnapshot(qWorkers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Worker));
       setWorkers(data);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'workers'));
 
     const qAttendance = query(collection(db, 'attendance'));
     const unsubscribeAttendance = onSnapshot(qAttendance, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
       setAttendance(data);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'attendance'));
+
+    const qHolidays = query(collection(db, 'holidays'));
+    const unsubscribeHolidays = onSnapshot(qHolidays, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Holiday));
+      setHolidays(data);
+    }, (error) => handleFirestoreError(error, OperationType.LIST, 'holidays'));
 
     return () => {
       unsubscribeWorkers();
       unsubscribeAttendance();
+      unsubscribeHolidays();
     };
   }, []);
+
+  const getWeekDates = (year: number, month: number, weekIndex: number) => {
+    const firstDayOfMonth = new Date(year, month - 1, 1);
+    const dayOfWeek = firstDayOfMonth.getDay(); // 0 (Sun) to 6 (Sat)
+    const diffToMonday = (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+    const firstMonday = new Date(firstDayOfMonth);
+    firstMonday.setDate(firstMonday.getDate() - diffToMonday);
+    
+    const weekStart = new Date(firstMonday);
+    weekStart.setDate(weekStart.getDate() + (weekIndex - 1) * 7);
+    
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      dates.push(d);
+    }
+    return dates;
+  };
+
+  const currentWeekDates = useMemo(() => {
+    if (selectedWeek === 'all') return [];
+    return getWeekDates(Number(selectedYear), Number(selectedMonth), Number(selectedWeek));
+  }, [selectedYear, selectedMonth, selectedWeek]);
+
+  const isHoliday = (date: Date) => {
+    const dateStr = date.toISOString().split('T')[0];
+    return holidays.find(h => h.date === dateStr);
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -74,8 +125,10 @@ const WorkforceManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     category: RoadType.JALAN,
-    dailyRate: 150000,
-    otRate: 75000,
+    dailyRate: 170000,
+    otRate1: 70000,
+    otRate2: 120000,
+    otRate3: 170000,
     monday: 0,
     tuesday: 0,
     wednesday: 0,
@@ -103,9 +156,9 @@ const WorkforceManagement: React.FC = () => {
     const overtime2Days = days.filter(d => d === 3).length;
     const overtime3Days = days.filter(d => d === 4).length;
     
-    const overtimeWage = (overtime1Days * (worker.dailyRate + worker.otRate)) + 
-                         (overtime2Days * (worker.dailyRate + worker.otRate * 1.5)) + 
-                         (overtime3Days * (worker.dailyRate + worker.otRate * 2));
+    const overtimeWage = (overtime1Days * (worker.dailyRate + (worker.otRate1 || 0))) + 
+                         (overtime2Days * (worker.dailyRate + (worker.otRate2 || 0))) + 
+                         (overtime3Days * (worker.dailyRate + (worker.otRate3 || 0)));
     
     return (standardDays * worker.dailyRate) + overtimeWage;
   };
@@ -132,16 +185,46 @@ const WorkforceManagement: React.FC = () => {
   }, [filteredWorkers, attendance, selectedYear, selectedMonth, selectedWeek]);
 
   const chartData = useMemo(() => {
+    if (selectedMonth === 'all') {
+      // Show Months of the Year
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 
+        'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+      ];
+      return months.map((monthName, idx) => {
+        const monthNum = idx + 1;
+        const count = attendance.filter(a => {
+          const [year, month] = a.month.split('-');
+          return year === selectedYear && Number(month) === monthNum;
+        }).length;
+        return { name: monthName, count };
+      });
+    }
+
+    if (selectedWeek === 'all') {
+      // Show Weeks of the Month
+      const weeks = [1, 2, 3, 4, 5];
+      return weeks.map(weekNum => {
+        const count = attendance.filter(a => {
+          const [year, month] = a.month.split('-');
+          return year === selectedYear && Number(month) === Number(selectedMonth) && a.week === weekNum;
+        }).length;
+        return { name: `W${weekNum}`, count };
+      });
+    }
+
+    // Show Days of the Week (Default)
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-    return days.map(day => {
+    const dayNames = ['SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB', 'MIN'];
+    return days.map((day, idx) => {
       const count = attendance.filter(a => {
         const [year, month] = a.month.split('-');
         const yearMatch = year === selectedYear;
-        const monthMatch = selectedMonth === 'all' || Number(month) === Number(selectedMonth);
-        const weekMatch = selectedWeek === 'all' || a.week === selectedWeek;
+        const monthMatch = Number(month) === Number(selectedMonth);
+        const weekMatch = a.week === selectedWeek;
         return yearMatch && monthMatch && weekMatch && (a.presence as any)[day] > 0;
       }).length;
-      return { name: day.substring(0, 3).toUpperCase(), count };
+      return { name: dayNames[idx], count };
     });
   }, [attendance, selectedYear, selectedMonth, selectedWeek]);
 
@@ -195,7 +278,9 @@ const WorkforceManagement: React.FC = () => {
         'Nama Pekerja': worker.name,
         'Jabatan': worker.category,
         'Upah Harian': worker.dailyRate,
-        'Upah Lembur': worker.otRate,
+        'Bonus Lembur 1': worker.otRate1,
+        'Bonus Lembur 2': worker.otRate2,
+        'Bonus Lembur 3': worker.otRate3,
         'Total Hadir Biasa': totalPresence,
         'Total Hadir Lembur': totalOT,
         'TOTAL UPAH': wage
@@ -214,8 +299,10 @@ const WorkforceManagement: React.FC = () => {
         'Pekan': 1,
         'Nama Pekerja': 'Ahmad Fulan',
         'Kategori': 'Jalan',
-        'Upah Harian': 150000,
-        'Upah Lembur': 75000,
+        'Upah Harian': 170000,
+        'Bonus Lembur 1': 70000,
+        'Bonus Lembur 2': 120000,
+        'Bonus Lembur 3': 170000,
         'Senin': 1, 'Selasa': 1, 'Rabu': 1, 'Kamis': 1, 'Jumat': 1, 'Sabtu': 2, 'Minggu': 0
       }
     ];
@@ -252,8 +339,10 @@ const WorkforceManagement: React.FC = () => {
               id: `imp-${name.replace(/\s+/g, '-').toLowerCase()}`,
               name: name,
               category: cat,
-              dailyRate: Number(row['Upah Harian']) || 150000,
-              otRate: Number(row['Upah Lembur']) || 75000
+              dailyRate: Number(row['Upah Harian']) || 170000,
+              otRate1: Number(row['Bonus Lembur 1']) || 70000,
+              otRate2: Number(row['Bonus Lembur 2']) || 120000,
+              otRate3: Number(row['Bonus Lembur 3']) || 170000
             });
           }
 
@@ -315,7 +404,9 @@ const WorkforceManagement: React.FC = () => {
         name: worker.name,
         category: worker.category,
         dailyRate: worker.dailyRate,
-        otRate: worker.otRate,
+        otRate1: worker.otRate1 || 70000,
+        otRate2: worker.otRate2 || 120000,
+        otRate3: worker.otRate3 || 170000,
         monday: record?.presence.monday || 0,
         tuesday: record?.presence.tuesday || 0,
         wednesday: record?.presence.wednesday || 0,
@@ -330,8 +421,10 @@ const WorkforceManagement: React.FC = () => {
       setFormData({
         name: '',
         category: activeTab,
-        dailyRate: activeTab === RoadType.JALAN ? 150000 : 175000,
-        otRate: activeTab === RoadType.JALAN ? 75000 : 85000,
+        dailyRate: 170000,
+        otRate1: 70000,
+        otRate2: 120000,
+        otRate3: 170000,
         monday: 1, tuesday: 1, wednesday: 1, thursday: 1, friday: 1, saturday: 0, sunday: 0
       });
     }
@@ -341,11 +434,19 @@ const WorkforceManagement: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (confirm('Hapus data pekerja ini?')) {
       try {
-        await deleteDoc(doc(db, 'workers', id));
+        try {
+          await deleteDoc(doc(db, 'workers', id));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.DELETE, `workers/${id}`);
+        }
         // Also delete attendance records for this worker
         const workerAttendance = attendance.filter(a => a.workerId === id);
         for (const record of workerAttendance) {
-          await deleteDoc(doc(db, 'attendance', record.id));
+          try {
+            await deleteDoc(doc(db, 'attendance', record.id));
+          } catch (error) {
+            handleFirestoreError(error, OperationType.DELETE, `attendance/${record.id}`);
+          }
         }
       } catch (error) {
         console.error('Error deleting worker:', error);
@@ -361,7 +462,9 @@ const WorkforceManagement: React.FC = () => {
       name: formData.name,
       category: formData.category,
       dailyRate: Number(formData.dailyRate),
-      otRate: Number(formData.otRate)
+      otRate1: Number(formData.otRate1),
+      otRate2: Number(formData.otRate2),
+      otRate3: Number(formData.otRate3)
     };
 
     const attendanceData = {
@@ -381,17 +484,37 @@ const WorkforceManagement: React.FC = () => {
 
     try {
       if (isEditing && selectedWorkerId) {
-        await updateDoc(doc(db, 'workers', selectedWorkerId), workerData);
+        try {
+          await updateDoc(doc(db, 'workers', selectedWorkerId), workerData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `workers/${selectedWorkerId}`);
+        }
         // Update attendance record if exists
         const existingRecord = attendance.find(a => a.workerId === selectedWorkerId && a.month === attendanceData.month && a.week === attendanceData.week);
         if (existingRecord) {
-          await updateDoc(doc(db, 'attendance', existingRecord.id), attendanceData);
+          try {
+            await updateDoc(doc(db, 'attendance', existingRecord.id), attendanceData);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.UPDATE, `attendance/${existingRecord.id}`);
+          }
         } else {
-          await addDoc(collection(db, 'attendance'), attendanceData);
+          try {
+            await addDoc(collection(db, 'attendance'), attendanceData);
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, 'attendance');
+          }
         }
       } else {
-        await addDoc(collection(db, 'workers'), { id: workerId, ...workerData });
-        await addDoc(collection(db, 'attendance'), attendanceData);
+        try {
+          await addDoc(collection(db, 'workers'), { id: workerId, ...workerData });
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'workers');
+        }
+        try {
+          await addDoc(collection(db, 'attendance'), attendanceData);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, 'attendance');
+        }
       }
       setIsModalOpen(false);
     } catch (error) {
@@ -409,8 +532,106 @@ const WorkforceManagement: React.FC = () => {
     return <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-300 dark:text-slate-600 font-black text-xs">-</div>;
   };
 
+  const handleDeleteHoliday = async (id: string) => {
+    if (!confirm('Hapus hari libur ini?')) return;
+    try {
+      try {
+        await deleteDoc(doc(db, 'holidays', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `holidays/${id}`);
+      }
+    } catch (error) {
+      console.error("Error deleting holiday:", error);
+    }
+  };
+
+  const handleAddHoliday = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const date = (form.elements.namedItem('date') as HTMLInputElement).value;
+    const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+    const type = (form.elements.namedItem('type') as HTMLSelectElement).value as 'National' | 'Cuti Bersama';
+
+    if (!date || !name) return;
+
+    try {
+      try {
+        await addDoc(collection(db, 'holidays'), { date, name, type });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'holidays');
+      }
+      form.reset();
+    } catch (error) {
+      console.error("Error adding holiday:", error);
+    }
+  };
+
   return (
     <AdminLayout title="Manajemen Tenaga Kerja">
+      {isHolidayModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsHolidayModalOpen(false)}></div>
+          <div className="relative bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-2xl w-full p-8 overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Kelola Hari Libur</h3>
+              <button onClick={() => setIsHolidayModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                <XCircle size={24} className="text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddHoliday} className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tanggal</label>
+                <input name="date" type="date" required className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Nama Hari Libur</label>
+                <input name="name" type="text" placeholder="Contoh: Idul Fitri" required className="w-full px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Tipe</label>
+                <div className="flex gap-2">
+                  <select name="type" className="flex-1 px-4 py-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="National">Nasional</option>
+                    <option value="Cuti Bersama">Cuti Bersama</option>
+                  </select>
+                  <button type="submit" className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
+                    <Plus size={20} />
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <div className="max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-3">
+                {holidays.sort((a,b) => a.date.localeCompare(b.date)).map(holiday => (
+                  <div key={holiday.id} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl shadow-sm">
+                    <div className="flex items-center gap-4">
+                      <div className={`p-2 rounded-xl ${holiday.type === 'National' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-orange-100 text-orange-600 dark:bg-orange-900/30'}`}>
+                        <Calendar size={18} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{holiday.name}</p>
+                        <p className="text-[10px] text-slate-500 font-medium uppercase">{new Date(holiday.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} • {holiday.type}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDeleteHoliday(holiday.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
+                {holidays.length === 0 && (
+                  <div className="text-center py-12 text-slate-400">
+                    <Calendar size={40} className="mx-auto mb-3 opacity-20" />
+                    <p className="text-sm font-medium">Belum ada hari libur yang ditambahkan</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       
       {/* Metrics Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -433,7 +654,9 @@ const WorkforceManagement: React.FC = () => {
 
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 md:col-span-2">
            <div className="flex justify-between items-center mb-4">
-              <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-300">Statistik Kehadiran Mingguan</h4>
+              <h4 className="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-300">
+                Statistik Kehadiran {selectedMonth === 'all' ? 'Tahunan' : selectedWeek === 'all' ? 'Bulanan' : 'Mingguan'}
+              </h4>
               <div className="flex items-center gap-4">
                  <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600"></span><span className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-300">Pekerja Hadir</span></div>
               </div>
@@ -515,6 +738,12 @@ const WorkforceManagement: React.FC = () => {
             <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
           </div>
           <button 
+            onClick={() => setIsHolidayModalOpen(true)}
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95 transition-all w-full lg:w-auto"
+          >
+            <Calendar size={16}/> Kelola Hari Libur
+          </button>
+          <button 
             onClick={() => openModal()}
             disabled={selectedMonth === 'all' || selectedWeek === 'all'}
             className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 active:scale-95 transition-all w-full lg:w-auto disabled:opacity-50"
@@ -575,7 +804,24 @@ const WorkforceManagement: React.FC = () => {
               <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-700">
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-200 w-16">No</th>
                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-200">Nama Pekerja</th>
-                {selectedWeek !== 'all' ? (
+                {selectedWeek !== 'all' && currentWeekDates.length > 0 ? (
+                  <>
+                    {['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'].map((day, idx) => {
+                      const date = currentWeekDates[idx];
+                      const holiday = isHoliday(date);
+                      const isCurrentMonth = date.getMonth() + 1 === Number(selectedMonth);
+                      return (
+                        <th key={day} className={`px-3 py-5 text-[10px] font-black uppercase tracking-widest text-center ${!isCurrentMonth ? 'opacity-30' : holiday ? 'text-red-500' : 'text-slate-500 dark:text-slate-200'}`}>
+                          <div className="flex flex-col items-center">
+                            <span>{day}</span>
+                            <span className="text-[9px] mt-0.5">{date.getDate()}</span>
+                            {holiday && <span className="text-[7px] mt-0.5 truncate max-w-[40px]">{holiday.name}</span>}
+                          </div>
+                        </th>
+                      );
+                    })}
+                  </>
+                ) : selectedWeek !== 'all' ? (
                   <>
                     <th className="px-3 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-200 text-center">Sen</th>
                     <th className="px-3 py-5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-200 text-center">Sel</th>
@@ -615,13 +861,15 @@ const WorkforceManagement: React.FC = () => {
                     </td>
                     {selectedWeek !== 'all' ? (
                       <>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.monday || 0)}</td>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.tuesday || 0)}</td>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.wednesday || 0)}</td>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.thursday || 0)}</td>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.friday || 0)}</td>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.saturday || 0)}</td>
-                        <td className="px-3 py-5 text-center">{renderCell(record?.presence.sunday || 0)}</td>
+                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day, idx) => {
+                          const date = currentWeekDates[idx];
+                          const holiday = isHoliday(date);
+                          return (
+                            <td key={day} className={`px-3 py-5 text-center ${holiday ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`}>
+                              {renderCell((record?.presence as any)?.[day] || 0)}
+                            </td>
+                          );
+                        })}
                       </>
                     ) : (
                       <>
@@ -755,8 +1003,16 @@ const WorkforceManagement: React.FC = () => {
                     <input type="number" required value={formData.dailyRate} onChange={e => setFormData({...formData, dailyRate: Number(e.target.value)})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"/>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-200 uppercase tracking-widest mb-1 block">Bonus Lembur (Rp)</label>
-                    <input type="number" required value={formData.otRate} onChange={e => setFormData({...formData, otRate: Number(e.target.value)})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"/>
+                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-200 uppercase tracking-widest mb-1 block">Bonus Lembur 1 (Rp)</label>
+                    <input type="number" required value={formData.otRate1} onChange={e => setFormData({...formData, otRate1: Number(e.target.value)})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-200 uppercase tracking-widest mb-1 block">Bonus Lembur 2 (Rp)</label>
+                    <input type="number" required value={formData.otRate2} onChange={e => setFormData({...formData, otRate2: Number(e.target.value)})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"/>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-200 uppercase tracking-widest mb-1 block">Bonus Lembur 3 (Rp)</label>
+                    <input type="number" required value={formData.otRate3} onChange={e => setFormData({...formData, otRate3: Number(e.target.value)})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"/>
                   </div>
                </div>
 

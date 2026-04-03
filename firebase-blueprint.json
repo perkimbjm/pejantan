@@ -76,9 +76,13 @@
       "type": "object",
       "properties": {
         "name": { "type": "string" },
-        "role": { "type": "string" }
+        "role": { "type": "string" },
+        "dailyRate": { "type": "number" },
+        "otRate1": { "type": "number" },
+        "otRate2": { "type": "number" },
+        "otRate3": { "type": "number" }
       },
-      "required": ["name", "role"]
+      "required": ["name", "role", "dailyRate", "otRate1", "otRate2", "otRate3"]
     },
     "Report": {
       "title": "Report",
@@ -110,6 +114,55 @@
         "value": { "type": "string", "description": "The text content." }
       },
       "required": ["key", "value"]
+    },
+    "Holiday": {
+      "title": "Holiday",
+      "description": "National holiday or collective leave.",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["National", "Cuti Bersama"] }
+      },
+      "required": ["date", "name", "type"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Application user with roles.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "username": { "type": "string" },
+        "phone": { "type": "string" },
+        "displayName": { "type": "string" },
+        "roleIds": { "type": "array", "items": { "type": "string" } },
+        "isBanned": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "roleIds"]
+    },
+    "Role": {
+      "title": "Role",
+      "description": "User role with permissions.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "permissionIds": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["name", "permissionIds"]
+    },
+    "Permission": {
+      "title": "Permission",
+      "description": "Specific access permission.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "code"]
     }
   },
   "firestore": {
@@ -152,6 +205,22 @@
     "/costReports/{costReportId}": {
       "schema": { "$ref": "CostReport" },
       "description": "Monthly cost reports."
+    },
+    "/holidays/{holidayId}": {
+      "schema": { "$ref": "Holiday" },
+      "description": "National holidays and collective leave."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "User" },
+      "description": "Application users."
+    },
+    "/roles/{roleId}": {
+      "schema": { "$ref": "Role" },
+      "description": "User roles."
+    },
+    "/permissions/{permissionId}": {
+      "schema": { "$ref": "Permission" },
+      "description": "Access permissions."
     }
   }
 }
