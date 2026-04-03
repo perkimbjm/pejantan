@@ -27,6 +27,7 @@ import {
   Eye,
   X
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 import { COST_BY_CATEGORY } from '../../constants';
 import { GoogleGenAI } from "@google/genai";
 
@@ -125,7 +126,41 @@ const Reports: React.FC = () => {
   };
 
   const handleExportExcel = () => {
-    alert('Sedang menyiapkan file Excel Laporan Realisasi E-Purchasing...');
+    let dataToExport: any[] = [];
+    let sheetName = "";
+
+    if (activeTab === 'komitmen') {
+      sheetName = "Buku Komitmen";
+      dataToExport = commitments.map(c => ({
+        'ID Paket': c.id,
+        'Pekerjaan': c.name,
+        'Vendor': c.vendor,
+        'Pagu': c.pagu,
+        'Nilai Kontrak': c.commitment,
+        'Serapan (%)': ((c.commitment / c.pagu) * 100).toFixed(2)
+      }));
+    } else if (activeTab === 'epurchasing') {
+      sheetName = "E-Purchasing";
+      dataToExport = epurchasing.map(e => ({
+        'ID Transaksi': e.id,
+        'Item': e.item,
+        'Vendor': e.vendor,
+        'Tanggal': e.date,
+        'Total Harga': e.totalPrice,
+        'Status': e.status
+      }));
+    } else {
+      sheetName = "Laporan Biaya";
+      dataToExport = costReports.map(cr => ({
+        'ID Laporan': cr.id,
+        'Kategori': cr.category,
+        'Bulan': cr.month,
+        'Total Biaya': cr.totalCost,
+        'Keterangan': cr.description
+      }));
+    }
+
+    exportToExcel(dataToExport, `${sheetName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`, sheetName);
   };
 
   const handleOpenEPDetail = (item: any) => {
@@ -222,7 +257,12 @@ const Reports: React.FC = () => {
           <div className="bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden">
              <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
                 <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase">Daftar Komitmen Kontrak</h4>
-                <button onClick={handleExportExcel} className="text-[10px] font-black text-blue-600 uppercase tracking-widest hover:underline">Download CSV</button>
+                <button 
+                  onClick={handleExportExcel}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-green-600/20"
+                >
+                  <FileSpreadsheet size={14} /> Export Excel
+                </button>
              </div>
              <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -381,7 +421,7 @@ const Reports: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 p-6 sm:p-8">
               <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tight">Realisasi vs Anggaran Bulanan</h3>
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <BarChart data={costReports}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.1} />
                     <XAxis dataKey="month" tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 900}} axisLine={false} />
@@ -401,7 +441,7 @@ const Reports: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 p-6 sm:p-8">
               <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tight">Alokasi Belanja Sektoral</h3>
               <div className="h-72 flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
                       data={COST_BY_CATEGORY}

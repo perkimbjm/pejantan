@@ -25,8 +25,10 @@ import {
   Ban,
   Unlock,
   Key,
-  ChevronDown
+  ChevronDown,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -95,6 +97,21 @@ const UserManagement: React.FC = () => {
   }, []);
 
   const hasPermission = (code: string) => isSuperAdmin || currentUserPerms.includes(code);
+
+  const handleExportExcel = () => {
+    const dataToExport = users.map(u => ({
+      'UID': u.uid,
+      'Email': u.email,
+      'Nama': u.displayName || '-',
+      'Username': u.username || '-',
+      'Telepon': u.phone || '-',
+      'Role IDs': u.roleIds.join(', '),
+      'Status': u.isBanned ? 'Banned' : 'Aktif',
+      'Terdaftar': new Date(u.createdAt).toLocaleDateString('id-ID')
+    }));
+
+    exportToExcel(dataToExport, `Daftar_User_${new Date().toISOString().split('T')[0]}`, 'Manajemen User');
+  };
 
   useEffect(() => {
     const qUsers = query(collection(db, 'users'));
@@ -324,16 +341,24 @@ const UserManagement: React.FC = () => {
             className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
           />
         </div>
-        <button 
-          onClick={() => {
-            setIsEditing(false);
-            setFormData({ email: '', displayName: '', roleIds: [] });
-            setIsModalOpen(true);
-          }}
-          className="w-full sm:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <UserPlus size={18} /> Tambah Pengguna
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button 
+            onClick={handleExportExcel}
+            className="flex-1 sm:flex-none px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <FileSpreadsheet size={18} /> Export Excel
+          </button>
+          <button 
+            onClick={() => {
+              setIsEditing(false);
+              setFormData({ email: '', displayName: '', username: '', phone: '', roleIds: [] });
+              setIsModalOpen(true);
+            }}
+            className="flex-1 sm:flex-none px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <UserPlus size={18} /> Tambah Pengguna
+          </button>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">

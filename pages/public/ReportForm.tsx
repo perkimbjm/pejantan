@@ -237,7 +237,7 @@ const ReportForm: React.FC = () => {
         lat: location?.lat,
         lng: location?.lng,
         description: formData.description,
-        roadType: formData.roadType,
+        roadType: formData.category,
         status: 'Menunggu',
         dateSubmitted: new Date().toISOString(),
         createdAt: serverTimestamp(),

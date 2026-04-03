@@ -21,8 +21,10 @@ import {
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
-  ChevronDown
+  ChevronDown,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 
 const ComplaintList: React.FC = () => {
   // State for Data
@@ -113,6 +115,21 @@ const ComplaintList: React.FC = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    const dataToExport = filteredComplaints.map(c => ({
+      'Nomor Tiket': c.ticketNumber,
+      'Kategori': c.category,
+      'Pelapor': c.reporterName,
+      'Lokasi': c.location,
+      'Status': c.status,
+      'Tanggal Masuk': new Date(c.dateSubmitted).toLocaleDateString('id-ID'),
+      'Deskripsi': c.description,
+      'Catatan': c.notes || '-'
+    }));
+
+    exportToExcel(dataToExport, `Daftar_Aduan_${new Date().toISOString().split('T')[0]}`, 'Daftar Aduan');
+  };
+
 
   const handleSortByDate = () => {
     if (sortDirection === null) setSortDirection('desc');
@@ -169,25 +186,34 @@ const ComplaintList: React.FC = () => {
         
         {/* Filters Toolbar */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="relative flex-1 max-w-lg">
-             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-slate-400" />
-             </div>
-             <input 
-               type="text" 
-               value={searchTerm}
-               onChange={(e) => setSearchTerm(e.target.value)}
-               className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-10 sm:text-sm border-slate-300 dark:border-slate-600 rounded-xl p-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 transition-colors" 
-               placeholder="Cari tiket, lokasi, atau pelapor..." 
-             />
-             {searchTerm && (
-               <button 
-                 onClick={() => setSearchTerm('')}
-                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-               >
-                 <X size={16} />
-               </button>
-             )}
+          <div className="flex items-center gap-3 flex-1 max-w-2xl">
+            <button 
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-bold transition-all shadow-lg shadow-green-600/20 whitespace-nowrap"
+            >
+              <FileSpreadsheet size={16} />
+              Export Excel
+            </button>
+            <div className="relative flex-1">
+               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-slate-400" />
+               </div>
+               <input 
+                 type="text" 
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 className="focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 pr-10 sm:text-sm border-slate-300 dark:border-slate-600 rounded-xl p-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 transition-colors" 
+                 placeholder="Cari tiket, lokasi, atau pelapor..." 
+               />
+               {searchTerm && (
+                 <button 
+                   onClick={() => setSearchTerm('')}
+                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                 >
+                   <X size={16} />
+                 </button>
+               )}
+            </div>
           </div>
           
           <div className="flex items-center space-x-3">

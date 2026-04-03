@@ -26,8 +26,10 @@ import {
   Package,
   Truck,
   BarChart3,
-  Settings
+  Settings,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 
 const FEATURES = [
   { id: 'DASHBOARD', name: 'Dashboard', icon: <LayoutDashboard size={16} /> },
@@ -95,9 +97,32 @@ const PermissionManagement: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isEditing && isModalOpen) {
+      const existingActions = permissions
+        .filter(p => p.feature === selectedFeature)
+        .map(p => p.action);
+      
+      // Pre-select existing actions + 'read' by default
+      setSelectedActions(Array.from(new Set([...existingActions, 'read'])));
+    }
+  }, [selectedFeature, isModalOpen, isEditing, permissions]);
+
   const triggerToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleExportExcel = () => {
+    const dataToExport = permissions.map(p => ({
+      'Nama Izin': p.name,
+      'Kode': p.code,
+      'Fitur': p.feature,
+      'Aksi': p.action,
+      'Deskripsi': p.description || '-'
+    }));
+
+    exportToExcel(dataToExport, `Daftar_Izin_${new Date().toISOString().split('T')[0]}`, 'Manajemen Izin');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -308,12 +333,20 @@ const PermissionManagement: React.FC = () => {
             className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
           />
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <Plus size={18} /> Tambah Izin Fitur
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button 
+            onClick={handleExportExcel}
+            className="flex-1 sm:flex-none px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <FileSpreadsheet size={18} /> Export Excel
+          </button>
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex-1 sm:flex-none px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus size={18} /> Tambah Izin Fitur
+          </button>
+        </div>
       </div>
 
       <div className="space-y-6">
@@ -436,9 +469,6 @@ const PermissionManagement: React.FC = () => {
                         onChange={e => {
                           const newFeature = e.target.value;
                           setSelectedFeature(newFeature);
-                          if (newFeature !== 'USERS') {
-                            setSelectedActions(prev => prev.filter(a => a !== 'reset_password' && a !== 'ban_user'));
-                          }
                         }}
                         className="w-full px-5 py-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none"
                       >
@@ -458,32 +488,38 @@ const PermissionManagement: React.FC = () => {
                         return selectedFeature === 'USERS';
                       }
                       return true;
-                    }).map(action => (
-                      <button
-                        key={action.id}
-                        type="button"
-                        onClick={() => toggleAction(action.id)}
-                        className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
-                          selectedActions.includes(action.id)
-                            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
-                            : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-blue-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-xl ${action.color}`}>
-                            {action.icon}
+                    }).map(action => {
+                      const isExisting = permissions.some(p => p.feature === selectedFeature && p.action === action.id);
+                      return (
+                        <button
+                          key={action.id}
+                          type="button"
+                          onClick={() => toggleAction(action.id)}
+                          className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                            selectedActions.includes(action.id)
+                              ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800'
+                              : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-blue-200'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${action.color}`}>
+                              {action.icon}
+                            </div>
+                            <div className="text-left">
+                              <p className={`text-[10px] font-black uppercase tracking-tight ${selectedActions.includes(action.id) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{action.label}</p>
+                              {isExisting && (
+                                <span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">Sudah Ada</span>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-left">
-                            <p className={`text-[10px] font-black uppercase tracking-tight ${selectedActions.includes(action.id) ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{action.label}</p>
-                          </div>
-                        </div>
-                        {selectedActions.includes(action.id) && (
-                          <div className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-600/20">
-                            <Check size={12} />
-                          </div>
-                        )}
-                      </button>
-                    ))}
+                          {selectedActions.includes(action.id) && (
+                            <div className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-600/20">
+                              <Check size={12} />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 </>

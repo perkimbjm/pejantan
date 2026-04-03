@@ -15,8 +15,10 @@ import {
   Wrench,
   Construction,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 
 const EquipmentInventory: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Heavy' | 'Tool'>('Heavy');
@@ -80,6 +82,18 @@ const EquipmentInventory: React.FC = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    const dataToExport = equipment.map(e => ({
+      'Nama Alat': e.name,
+      'Tipe': e.type,
+      'Kategori': e.category === 'Heavy' ? 'Alat Berat' : 'Peralatan',
+      'Status': e.status,
+      'ID Pekerjaan': e.assignedToJobId || '-'
+    }));
+
+    exportToExcel(dataToExport, `Armada_Peralatan_${new Date().toISOString().split('T')[0]}`, 'Armada & Peralatan');
+  };
+
   const openEditModal = (item: Equipment) => {
     setIsEditing(true);
     setCurrentId(item.id || null);
@@ -132,11 +146,19 @@ const EquipmentInventory: React.FC = () => {
             <Wrench size={14} /> Peralatan Pekerja
           </button>
         </div>
-        <button onClick={() => {
-          setIsEditing(false);
-          setFormData({ name: '', type: '', category: activeTab, status: 'Tersedia' });
-          setIsModalOpen(true);
-        }} className="w-full md:w-auto px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 rounded-xl shadow-lg shadow-blue-600/20"><Plus className="inline mr-2" size={14}/> Tambah Alat</button>
+        <div className="flex gap-3 w-full md:w-auto">
+          <button 
+            onClick={handleExportExcel}
+            className="flex-1 md:flex-none px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-green-600 rounded-xl shadow-lg shadow-green-600/20 flex items-center justify-center gap-2"
+          >
+            <FileSpreadsheet size={16} /> Export Excel
+          </button>
+          <button onClick={() => {
+            setIsEditing(false);
+            setFormData({ name: '', type: '', category: activeTab, status: 'Tersedia' });
+            setIsModalOpen(true);
+          }} className="flex-1 md:flex-none px-6 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 rounded-xl shadow-lg shadow-blue-600/20"><Plus className="inline mr-2" size={14}/> Tambah Alat</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">

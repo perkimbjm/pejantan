@@ -16,8 +16,10 @@ import {
   Loader2,
   Check,
   Info,
-  Eye
+  Eye,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 
 const FEATURES = [
   { id: 'DASHBOARD', name: 'Dashboard' },
@@ -83,6 +85,20 @@ const RoleManagement: React.FC = () => {
   const triggerToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleExportExcel = () => {
+    const dataToExport = roles.map(r => {
+      const rolePermissions = permissions.filter(p => r.permissionIds.includes(p.id!));
+      return {
+        'Nama Role': r.name,
+        'Deskripsi': r.description,
+        'Jumlah Izin': r.permissionIds.length,
+        'Daftar Izin': rolePermissions.map(p => p.name).join(', ')
+      };
+    });
+
+    exportToExcel(dataToExport, `Daftar_Role_${new Date().toISOString().split('T')[0]}`, 'Manajemen Role');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -170,16 +186,24 @@ const RoleManagement: React.FC = () => {
             className="w-full pl-12 pr-4 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold text-slate-900 dark:text-white outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all shadow-sm"
           />
         </div>
-        <button 
-          onClick={() => {
-            setIsEditing(false);
-            setFormData({ name: '', description: '', permissionIds: [] });
-            setIsModalOpen(true);
-          }}
-          className="w-full sm:w-auto px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-        >
-          <Plus size={18} /> Tambah Peran
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <button 
+            onClick={handleExportExcel}
+            className="flex-1 sm:flex-none px-6 py-3.5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-green-600/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <FileSpreadsheet size={18} /> Export Excel
+          </button>
+          <button 
+            onClick={() => {
+              setIsEditing(false);
+              setFormData({ name: '', description: '', permissionIds: [] });
+              setIsModalOpen(true);
+            }}
+            className="flex-1 sm:flex-none px-6 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-500/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+          >
+            <Plus size={18} /> Tambah Peran
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

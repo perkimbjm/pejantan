@@ -18,8 +18,10 @@ import {
   Loader2,
   RefreshCw,
   ExternalLink,
-  CheckCircle2
+  CheckCircle2,
+  FileSpreadsheet
 } from 'lucide-react';
+import { exportToExcel } from '../../src/lib/excel';
 import { GoogleGenAI } from "@google/genai";
 
 const MaterialInventory: React.FC = () => {
@@ -172,6 +174,18 @@ const MaterialInventory: React.FC = () => {
     }
   };
 
+  const handleExportExcel = () => {
+    const dataToExport = materials.map(m => ({
+      'Nama Material': m.name,
+      'Satuan': m.unit,
+      'Stok Saat Ini': m.currentStock,
+      'Ambang Batas': m.minThreshold,
+      'Terakhir Update': m.lastUpdated
+    }));
+
+    exportToExcel(dataToExport, `Stok_Material_${new Date().toISOString().split('T')[0]}`, 'Stok Material');
+  };
+
 
   return (
     <AdminLayout title="Manajemen Stok Material">
@@ -214,7 +228,17 @@ const MaterialInventory: React.FC = () => {
       <div className="bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden">
         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Stok Material Konstruksi</h3>
-           <button onClick={openAddModal} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 rounded-xl shadow-lg active:scale-95 transition-all"><Plus className="inline mr-2" size={14}/> Tambah Stok</button>
+           <div className="flex gap-3">
+             <button 
+               onClick={handleExportExcel}
+               className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-green-600 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2"
+             >
+               <FileSpreadsheet size={14} /> Export Excel
+             </button>
+             <button onClick={openAddModal} className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white bg-blue-600 rounded-xl shadow-lg active:scale-95 transition-all flex items-center gap-2">
+               <Plus size={14}/> Tambah Stok
+             </button>
+           </div>
         </div>
         <ul className="divide-y divide-slate-100 dark:divide-slate-700">
           {materials.map((item) => {

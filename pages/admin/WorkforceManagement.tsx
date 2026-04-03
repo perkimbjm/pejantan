@@ -332,7 +332,7 @@ const WorkforceManagement: React.FC = () => {
         data.forEach((row, i) => {
           const name = row['Nama Pekerja'] || `Pekerja-${i}`;
           const cat = row['Kategori']?.toLowerCase().includes('jembatan') ? RoadType.JEMBATAN : RoadType.JALAN;
-          const weekFromRow = Number(row['Pekan']) || selectedWeek;
+          const weekFromRow = Number(row['Pekan']) || (selectedWeek === 'all' ? 1 : selectedWeek);
           
           if (!newWorkersMap.has(name)) {
             newWorkersMap.set(name, {
