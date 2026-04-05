@@ -5,7 +5,7 @@ import { Complaint, ComplaintStatus } from '../../types';
 import { parseFirestoreDate, formatIndonesianDate } from '../../src/lib/dateUtils';
 import StatusBadge from '../../components/StatusBadge';
 import { db } from '../../src/firebase';
-import { collection, onSnapshot, query, updateDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, updateDoc, doc, deleteField } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   Search, 
@@ -99,10 +99,10 @@ const ComplaintList: React.FC = () => {
       try {
         await updateDoc(doc(db, 'complaints', selectedComplaint.id!), {
           status: processForm.status,
-          rejectionReason: processForm.status === ComplaintStatus.REJECTED ? processForm.rejectionReason : undefined,
-          surveyDate: processForm.status === ComplaintStatus.SURVEY ? processForm.surveyDate : selectedComplaint.surveyDate,
-          completionDate: processForm.status === ComplaintStatus.COMPLETED ? processForm.completionDate : selectedComplaint.completionDate,
-          notes: processForm.notes || undefined,
+          rejectionReason: processForm.status === ComplaintStatus.REJECTED ? processForm.rejectionReason : deleteField(),
+          surveyDate: processForm.status === ComplaintStatus.SURVEY ? processForm.surveyDate : (selectedComplaint.surveyDate || deleteField()),
+          completionDate: processForm.status === ComplaintStatus.COMPLETED ? processForm.completionDate : (selectedComplaint.completionDate || deleteField()),
+          notes: processForm.notes || deleteField(),
           dateUpdated: new Date().toISOString()
         });
       } catch (error) {
@@ -392,6 +392,21 @@ const ComplaintList: React.FC = () => {
                        <div className="flex items-center text-slate-900 dark:text-white font-medium">
                           <User className="w-4 h-4 mr-2 text-slate-400" />
                           {selectedComplaint.reporterName}
+                       </div>
+                       <div className="flex items-center text-slate-900 dark:text-white font-medium mt-2">
+                          <Phone className="w-4 h-4 mr-2 text-slate-400" />
+                          {selectedComplaint.reporterPhone ? (
+                            <a 
+                              href={`https://wa.me/${selectedComplaint.reporterPhone.startsWith('0') ? '62' + selectedComplaint.reporterPhone.slice(1) : selectedComplaint.reporterPhone}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              {selectedComplaint.reporterPhone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-500 italic text-sm">Tidak ada nomor</span>
+                          )}
                        </div>
                     </div>
                     <div>
