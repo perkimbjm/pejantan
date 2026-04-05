@@ -5,7 +5,7 @@ import { db } from '../../src/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { ComplaintStatus, RoadType } from '../../types';
-import { parseFirestoreDate } from '../../src/lib/dateUtils';
+import { parseFirestoreDate, formatIndonesianDate } from '../../src/lib/dateUtils';
 import { 
   BarChart, 
   Bar, 
@@ -138,7 +138,12 @@ const Dashboard: React.FC = () => {
 
     const all = [...notifications, ...complaintActivities];
     return all
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .sort((a, b) => {
+        const dateA = parseFirestoreDate(a.timestamp);
+        const dateB = parseFirestoreDate(b.timestamp);
+        if (!dateA || !dateB) return 0;
+        return dateB.getTime() - dateA.getTime();
+      })
       .slice(0, 15);
   }, [notifications, complaints]);
 
@@ -298,7 +303,7 @@ const Dashboard: React.FC = () => {
               <BarChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.1} vertical={false} />
                 <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} />
-                <YAxis tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} />
+                <YAxis tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} />
                 <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={24} />
               </BarChart>
@@ -427,7 +432,7 @@ const Dashboard: React.FC = () => {
                        {notif.message}
                     </p>
                     <div className="mt-1.5 flex items-center text-[9px] text-slate-400 dark:text-slate-300 font-black uppercase tracking-widest">
-                       {new Date(notif.timestamp).toLocaleString('id-ID')}
+                       {formatIndonesianDate(notif.timestamp, true)}
                     </div>
                  </div>
               ))}

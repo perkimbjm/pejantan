@@ -100,10 +100,12 @@
       "type": "object",
       "properties": {
         "month": { "type": "string" },
+        "category": { "type": "string" },
         "estimasi": { "type": "number" },
-        "realisasi": { "type": "number" }
+        "realisasi": { "type": "number" },
+        "description": { "type": "string" }
       },
-      "required": ["month", "estimasi", "realisasi"]
+      "required": ["month", "category", "estimasi", "realisasi"]
     },
     "StaticText": {
       "title": "StaticText",

@@ -662,15 +662,16 @@ const WorkforceManagement: React.FC = () => {
                  <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-blue-600"></span><span className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-300">Pekerja Hadir</span></div>
               </div>
            </div>
-           <div className="h-28 w-full">
-             <ResponsiveContainer width="100%" height="100%">
-               <BarChart data={chartData}>
-                 <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                 <XAxis dataKey="name" hide />
-                 <Tooltip cursor={{fill: 'transparent'}} contentStyle={{fontSize: '10px', borderRadius: '8px'}} />
-               </BarChart>
-             </ResponsiveContainer>
-           </div>
+            <div className="h-28 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="name" hide />
+                  <YAxis allowDecimals={false} hide />
+                  <Tooltip cursor={{fill: 'transparent'}} contentStyle={{fontSize: '10px', borderRadius: '8px'}} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
         </div>
       </div>
 

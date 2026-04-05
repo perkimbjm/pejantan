@@ -49,7 +49,7 @@ const formatRupiah = (value: number) => {
 };
 
 const Reports: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'grafik' | 'komitmen' | 'epurchasing'>('komitmen');
+  const [activeTab, setActiveTab] = useState<'grafik' | 'komitmen' | 'epurchasing' | 'biaya'>('komitmen');
   const [fiscalAnalysis, setFiscalAnalysis] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showApiKeyPrompt, setShowApiKeyPrompt] = useState(false);
@@ -59,6 +59,7 @@ const Reports: React.FC = () => {
   const [costReports, setCostReports] = useState<any[]>([]);
   const [isCommitmentModalOpen, setIsCommitmentModalOpen] = useState(false);
   const [isEPurchasingModalOpen, setIsEPurchasingModalOpen] = useState(false);
+  const [isCostReportModalOpen, setIsCostReportModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
@@ -79,6 +80,14 @@ const Reports: React.FC = () => {
     tglKontrak: '',
     tglBerakhir: '',
     status: 'Draft'
+  });
+
+  const [costReportForm, setCostReportForm] = useState({
+    month: new Date().toISOString().substring(0, 7),
+    category: 'Material',
+    estimasi: 0,
+    realisasi: 0,
+    description: ''
   });
 
   useEffect(() => {
@@ -374,6 +383,86 @@ const Reports: React.FC = () => {
     }
   };
 
+  const handleAddCostReport = () => {
+    setEditingItem(null);
+    setCostReportForm({
+      month: new Date().toISOString().substring(0, 7),
+      category: 'Material',
+      estimasi: 0,
+      realisasi: 0,
+      description: ''
+    });
+    setIsCostReportModalOpen(true);
+  };
+
+  const handleEditCostReport = (item: any) => {
+    setEditingItem(item);
+    setCostReportForm({
+      month: item.month,
+      category: item.category,
+      estimasi: item.estimasi,
+      realisasi: item.realisasi,
+      description: item.description || ''
+    });
+    setIsCostReportModalOpen(true);
+  };
+
+  const handleDeleteCostReport = async (id: string) => {
+    if (!window.confirm('Hapus laporan biaya ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'costReports', id));
+      toast.success('Laporan biaya berhasil dihapus');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'costReports');
+    }
+  };
+
+  const handleCostReportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      if (editingItem) {
+        await updateDoc(doc(db, 'costReports', editingItem.id), {
+          ...costReportForm,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await addDoc(collection(db, 'costReports'), {
+          ...costReportForm,
+          createdAt: serverTimestamp()
+        });
+      }
+      setIsCostReportModalOpen(false);
+      toast.success(editingItem ? 'Laporan biaya berhasil diperbarui' : 'Laporan biaya berhasil ditambahkan');
+    } catch (error) {
+      handleFirestoreError(error, editingItem ? OperationType.UPDATE : OperationType.CREATE, 'costReports');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const sectoralAllocation = React.useMemo(() => {
+    const allocation: Record<string, number> = {};
+    costReports.forEach(report => {
+      const cat = report.category || 'Lainnya';
+      allocation[cat] = (allocation[cat] || 0) + (report.realisasi || 0);
+    });
+    return Object.entries(allocation).map(([name, value]) => ({ name, value }));
+  }, [costReports]);
+
+  const monthlyTrend = React.useMemo(() => {
+    const trend: Record<string, { month: string, estimasi: number, realisasi: number }> = {};
+    costReports.forEach(report => {
+      const m = report.month;
+      if (!trend[m]) {
+        trend[m] = { month: m, estimasi: 0, realisasi: 0 };
+      }
+      trend[m].estimasi += (report.estimasi || 0);
+      trend[m].realisasi += (report.realisasi || 0);
+    });
+    return Object.values(trend).sort((a, b) => a.month.localeCompare(b.month));
+  }, [costReports]);
+
   return (
     <AdminLayout title="Laporan & Keuangan">
       
@@ -426,6 +515,7 @@ const Reports: React.FC = () => {
         {[
           { id: 'komitmen', label: 'Buku Komitmen', icon: Wallet },
           { id: 'epurchasing', label: 'E-Purchasing & LKPP', icon: ShoppingCart },
+          { id: 'biaya', label: 'Laporan Biaya', icon: FileSpreadsheet },
           { id: 'grafik', label: 'Analisa Grafik', icon: PieChartIcon },
         ].map((tab) => (
           <button
@@ -679,7 +769,75 @@ const Reports: React.FC = () => {
         </div>
       )}
 
-      {/* ================= TAB 3: GRAFIK ANALISA ================= */}
+      {/* ================= TAB 3: LAPORAN BIAYA ================= */}
+      {activeTab === 'biaya' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden">
+             <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase">Daftar Laporan Biaya Bulanan</h4>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={handleAddCostReport}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20"
+                  >
+                    <Plus size={14} /> Tambah Laporan
+                  </button>
+                  <button 
+                    onClick={handleExportExcel}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-green-600/20"
+                  >
+                    <FileSpreadsheet size={14} /> Export Excel
+                  </button>
+                </div>
+             </div>
+             <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                   <thead className="bg-slate-50 dark:bg-slate-900/30">
+                      <tr>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Bulan</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300">Kategori</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 text-right">Estimasi (Pagu)</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 text-right">Realisasi</th>
+                        <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 dark:text-slate-300 text-center">Aksi</th>
+                      </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                       {costReports.sort((a,b) => b.month.localeCompare(a.month)).map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                           <td className="px-6 py-4 text-xs font-black text-slate-900 dark:text-white uppercase">{item.month}</td>
+                           <td className="px-6 py-4">
+                              <span className="px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded text-[10px] font-black uppercase tracking-widest">{item.category}</span>
+                           </td>
+                           <td className="px-6 py-4 text-right text-xs font-bold text-slate-900 dark:text-white">{formatRupiah(item.estimasi)}</td>
+                           <td className="px-6 py-4 text-right text-xs font-bold text-blue-600 dark:text-blue-400">{formatRupiah(item.realisasi)}</td>
+                           <td className="px-6 py-4">
+                              <div className="flex items-center justify-center gap-2">
+                                 <button 
+                                    onClick={() => handleEditCostReport(item)}
+                                    className="p-2 text-slate-400 hover:text-blue-600 transition-all bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm"
+                                    title="Edit"
+                                 >
+                                    <Edit2 size={14} />
+                                 </button>
+                                 <button 
+                                    onClick={() => handleDeleteCostReport(item.id)}
+                                    className="p-2 text-slate-400 hover:text-red-600 transition-all bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm"
+                                    title="Hapus"
+                                 >
+                                    <Trash2 size={14} />
+                                 </button>
+                              </div>
+                           </td>
+                        </tr>
+                      ))}
+                   </tbody>
+                </table>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= TAB 4: GRAFIK ANALISA ================= */}
       {activeTab === 'grafik' && (
         <div className="space-y-6 animate-in fade-in duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -687,10 +845,10 @@ const Reports: React.FC = () => {
               <h3 className="text-lg font-black text-slate-900 dark:text-white mb-6 uppercase tracking-tight">Realisasi vs Anggaran Bulanan</h3>
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-                  <BarChart data={costReports}>
+                  <BarChart data={monthlyTrend}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.1} />
                     <XAxis dataKey="month" tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 900}} axisLine={false} />
-                    <YAxis hide />
+                    <YAxis hide allowDecimals={false} />
                     <Tooltip 
                       formatter={(value: any) => formatRupiah(Number(value))}
                       contentStyle={{backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '10px'}}
@@ -709,7 +867,7 @@ const Reports: React.FC = () => {
                 <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                   <PieChart>
                     <Pie
-                      data={COST_BY_CATEGORY}
+                      data={sectoralAllocation}
                       cx="50%"
                       cy="50%"
                       innerRadius={60}
@@ -718,7 +876,7 @@ const Reports: React.FC = () => {
                       dataKey="value"
                       stroke="none"
                     >
-                      {COST_BY_CATEGORY.map((entry, index) => (
+                      {sectoralAllocation.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -728,6 +886,98 @@ const Reports: React.FC = () => {
                 </ResponsiveContainer>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cost Report Modal */}
+      {isCostReportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsCostReportModalOpen(false)}></div>
+          <div className="relative w-full max-w-lg bg-white dark:bg-slate-800 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                {editingItem ? 'Edit Laporan Biaya' : 'Tambah Laporan Biaya'}
+              </h3>
+              <button onClick={() => setIsCostReportModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCostReportSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Bulan (YYYY-MM)</label>
+                  <input 
+                    type="month"
+                    required
+                    value={costReportForm.month}
+                    onChange={(e) => setCostReportForm({...costReportForm, month: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Kategori</label>
+                  <select 
+                    required
+                    value={costReportForm.category}
+                    onChange={(e) => setCostReportForm({...costReportForm, category: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Material">Material</option>
+                    <option value="Upah Kerja">Upah Kerja</option>
+                    <option value="BBM & Transport">BBM & Transport</option>
+                    <option value="Alat Berat">Alat Berat</option>
+                    <option value="Lainnya">Lainnya</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Estimasi (Pagu)</label>
+                  <input 
+                    type="number"
+                    required
+                    value={costReportForm.estimasi}
+                    onChange={(e) => setCostReportForm({...costReportForm, estimasi: Number(e.target.value)})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Realisasi</label>
+                  <input 
+                    type="number"
+                    required
+                    value={costReportForm.realisasi}
+                    onChange={(e) => setCostReportForm({...costReportForm, realisasi: Number(e.target.value)})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Keterangan</label>
+                <textarea 
+                  value={costReportForm.description}
+                  onChange={(e) => setCostReportForm({...costReportForm, description: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm outline-none focus:ring-2 focus:ring-blue-500 h-24 resize-none"
+                  placeholder="Opsional..."
+                />
+              </div>
+              <div className="pt-4 flex gap-3">
+                <button 
+                  type="button"
+                  onClick={() => setIsCostReportModalOpen(false)}
+                  className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase tracking-widest"
+                >
+                  Batal
+                </button>
+                <button 
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-600/20 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Simpan
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
