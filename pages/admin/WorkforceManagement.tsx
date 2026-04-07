@@ -3,7 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import AdminLayout from './AdminLayout';
 import { Worker, AttendanceRecord, RoadType, Holiday } from '../../types';
 import { db, auth } from '../../src/firebase';
-import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocFromServer } from 'firebase/firestore';
+import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
 import { 
   Users, 
@@ -157,11 +157,10 @@ const WorkforceManagement: React.FC = () => {
     const overtime2Days = days.filter(d => d === 3).length;
     const overtime3Days = days.filter(d => d === 4).length;
     
-    const overtimeWage = (overtime1Days * (worker.dailyRate + (worker.otRate1 || 0))) + 
-                         (overtime2Days * (worker.dailyRate + (worker.otRate2 || 0))) + 
-                         (overtime3Days * (worker.dailyRate + (worker.otRate3 || 0)));
-    
-    return (standardDays * worker.dailyRate) + overtimeWage;
+    return (standardDays * worker.dailyRate) + 
+           (overtime1Days * (worker.otRate1 || 0)) + 
+           (overtime2Days * (worker.otRate2 || 0)) + 
+           (overtime3Days * (worker.otRate3 || 0));
   };
 
   const getAttendanceRecordsForWorker = (workerId: string) => {
@@ -170,7 +169,7 @@ const WorkforceManagement: React.FC = () => {
       const yearMatch = year === selectedYear;
       const monthMatch = selectedMonth === 'all' || Number(month) === Number(selectedMonth);
       const weekMatch = selectedWeek === 'all' || a.week === selectedWeek;
-      return yearMatch && monthMatch && weekMatch;
+      return yearMatch && monthMatch && weekMatch && a.workerId === workerId;
     });
   };
 
@@ -196,7 +195,8 @@ const WorkforceManagement: React.FC = () => {
         const monthNum = idx + 1;
         const count = attendance.filter(a => {
           const [year, month] = a.month.split('-');
-          return year === selectedYear && Number(month) === monthNum;
+          const isWorkerInTab = filteredWorkers.some(w => w.id === a.workerId);
+          return year === selectedYear && Number(month) === monthNum && isWorkerInTab;
         }).length;
         return { name: monthName, count };
       });
@@ -208,7 +208,8 @@ const WorkforceManagement: React.FC = () => {
       return weeks.map(weekNum => {
         const count = attendance.filter(a => {
           const [year, month] = a.month.split('-');
-          return year === selectedYear && Number(month) === Number(selectedMonth) && a.week === weekNum;
+          const isWorkerInTab = filteredWorkers.some(w => w.id === a.workerId);
+          return year === selectedYear && Number(month) === Number(selectedMonth) && a.week === weekNum && isWorkerInTab;
         }).length;
         return { name: `W${weekNum}`, count };
       });
@@ -223,11 +224,12 @@ const WorkforceManagement: React.FC = () => {
         const yearMatch = year === selectedYear;
         const monthMatch = Number(month) === Number(selectedMonth);
         const weekMatch = a.week === selectedWeek;
-        return yearMatch && monthMatch && weekMatch && (a.presence as any)[day] > 0;
+        const isWorkerInTab = filteredWorkers.some(w => w.id === a.workerId);
+        return yearMatch && monthMatch && weekMatch && isWorkerInTab && (a.presence as any)[day] > 0;
       }).length;
       return { name: dayNames[idx], count };
     });
-  }, [attendance, selectedYear, selectedMonth, selectedWeek]);
+  }, [attendance, selectedYear, selectedMonth, selectedWeek, filteredWorkers]);
 
   // --- Excel Operations ---
   const handleExport = () => {
@@ -486,7 +488,7 @@ const WorkforceManagement: React.FC = () => {
     try {
       if (isEditing && selectedWorkerId) {
         try {
-          await updateDoc(doc(db, 'workers', selectedWorkerId), workerData);
+          await setDoc(doc(db, 'workers', selectedWorkerId), { id: selectedWorkerId, ...workerData }, { merge: true });
         } catch (error) {
           handleFirestoreError(error, OperationType.UPDATE, `workers/${selectedWorkerId}`);
         }
@@ -494,7 +496,7 @@ const WorkforceManagement: React.FC = () => {
         const existingRecord = attendance.find(a => a.workerId === selectedWorkerId && a.month === attendanceData.month && a.week === attendanceData.week);
         if (existingRecord) {
           try {
-            await updateDoc(doc(db, 'attendance', existingRecord.id), attendanceData);
+            await setDoc(doc(db, 'attendance', existingRecord.id), attendanceData, { merge: true });
           } catch (error) {
             handleFirestoreError(error, OperationType.UPDATE, `attendance/${existingRecord.id}`);
           }
@@ -507,7 +509,7 @@ const WorkforceManagement: React.FC = () => {
         }
       } else {
         try {
-          await addDoc(collection(db, 'workers'), { id: workerId, ...workerData });
+          await setDoc(doc(db, 'workers', workerId), { id: workerId, ...workerData });
         } catch (error) {
           handleFirestoreError(error, OperationType.CREATE, 'workers');
         }
@@ -518,6 +520,7 @@ const WorkforceManagement: React.FC = () => {
         }
       }
       setIsModalOpen(false);
+      toast.success(isEditing ? 'Data pekerja berhasil diupdate' : 'Data pekerja berhasil ditambahkan');
     } catch (error) {
       console.error('Error saving worker:', error);
       toast.error('Gagal menyimpan data pekerja');
@@ -850,7 +853,7 @@ const WorkforceManagement: React.FC = () => {
                 const records = getAttendanceRecordsForWorker(worker.id);
                 const totalWageVal = calculateTotalWage(records, worker);
                 const totalPresence = records.reduce((acc, r) => acc + Object.values(r.presence).filter(d => d === 1).length, 0);
-                const totalOT = records.reduce((acc, r) => acc + Object.values(r.presence).filter(d => d === 2).length, 0);
+                const totalOT = records.reduce((acc, r) => acc + Object.values(r.presence).filter(d => d > 1).length, 0);
                 const record = records[0]; // For daily view
                 const actualIndex = (currentPage - 1) * itemsPerPage + index + 1;
 
