@@ -17,7 +17,8 @@ import {
   Hammer,
   Users,
   Shield,
-  Key
+  Key,
+  Activity
 } from 'lucide-react';
 import { useTheme } from './ThemeContext';
 
@@ -42,6 +43,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isCollapsed, onToggleCollap
     { name: 'Manajemen User', path: '/admin/users', icon: <Users size={20} /> },
     { name: 'Manajemen Role', path: '/admin/roles', icon: <Shield size={20} /> },
     { name: 'Manajemen Izin', path: '/admin/permissions', icon: <Key size={20} /> },
+    { name: 'Audit Log', path: '/admin/audit-logs', icon: <Activity size={20} /> },
   ];
 
   const isActive = (path: string) => {

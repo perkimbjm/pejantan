@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import AdminLayout from './AdminLayout';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
@@ -62,6 +63,7 @@ const Dashboard: React.FC = () => {
 
   const [selectedYear, setSelectedYear] = useState(currentYear.toString());
   const [selectedMonth, setSelectedMonth] = useState(currentMonth.toString());
+  const [trendView, setTrendView] = useState<'7days' | 'month' | 'quarter' | 'year'>('7days');
 
   const [complaints, setComplaints] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -107,27 +109,91 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const trendData = useMemo(() => {
-    const last7Days = [...Array(7)].map((_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      return d;
-    });
+    if (trendView === '7days') {
+      const last7Days = [...Array(7)].map((_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        return d;
+      });
 
-    const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+      const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
 
-    return last7Days.map(date => {
-      const count = complaints.filter(c => {
-        const cDate = parseFirestoreDate(c.dateSubmitted || c.dateCreated || c.createdAt);
-        if (!cDate) return false;
-        return cDate.toDateString() === date.toDateString();
-      }).length;
+      return last7Days.map(date => {
+        const count = complaints.filter(c => {
+          const cDate = parseFirestoreDate(c.dateSubmitted || c.dateCreated || c.createdAt);
+          if (!cDate) return false;
+          return cDate.toDateString() === date.toDateString();
+        }).length;
 
-      return {
-        name: dayNames[date.getDay()],
-        value: count
+        return {
+          name: dayNames[date.getDay()],
+          value: count
+        };
+      });
+    } else if (trendView === 'month') {
+      const year = parseInt(selectedYear);
+      const month = selectedMonth === 'all' ? new Date().getMonth() + 1 : parseInt(selectedMonth);
+      
+      const getWeekOfMonth = (date: Date) => {
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+        return Math.ceil((date.getDate() + firstDay) / 7);
       };
-    });
-  }, [complaints]);
+      
+      const weeksData = [
+        { name: 'Pekan 1', value: 0 },
+        { name: 'Pekan 2', value: 0 },
+        { name: 'Pekan 3', value: 0 },
+        { name: 'Pekan 4', value: 0 },
+        { name: 'Pekan 5', value: 0 },
+      ];
+      
+      complaints.forEach(c => {
+        const cDate = parseFirestoreDate(c.dateSubmitted || c.dateCreated || c.createdAt);
+        if (!cDate) return;
+        if (cDate.getFullYear() === year && (cDate.getMonth() + 1) === month) {
+          const week = getWeekOfMonth(cDate);
+          if (week >= 1 && week <= 5) {
+            weeksData[week - 1].value += 1;
+          }
+        }
+      });
+      return weeksData;
+    } else if (trendView === 'quarter') {
+      const year = parseInt(selectedYear);
+      const quarterData = [
+        { name: 'Q1 (Jan-Mar)', value: 0 },
+        { name: 'Q2 (Apr-Jun)', value: 0 },
+        { name: 'Q3 (Jul-Sep)', value: 0 },
+        { name: 'Q4 (Okt-Des)', value: 0 },
+      ];
+      
+      complaints.forEach(c => {
+        const cDate = parseFirestoreDate(c.dateSubmitted || c.dateCreated || c.createdAt);
+        if (!cDate) return;
+        if (cDate.getFullYear() === year) {
+          const month = cDate.getMonth();
+          const quarter = Math.floor(month / 3);
+          quarterData[quarter].value += 1;
+        }
+      });
+      return quarterData;
+    } else if (trendView === 'year') {
+      const year = parseInt(selectedYear);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+      const yearData = monthNames.map(name => ({ name, value: 0 }));
+      
+      complaints.forEach(c => {
+        const cDate = parseFirestoreDate(c.dateSubmitted || c.dateCreated || c.createdAt);
+        if (!cDate) return;
+        if (cDate.getFullYear() === year) {
+          const month = cDate.getMonth();
+          yearData[month].value += 1;
+        }
+      });
+      return yearData;
+    }
+    return [];
+  }, [complaints, trendView, selectedYear, selectedMonth]);
 
   const combinedActivities = useMemo(() => {
     const complaintActivities = complaints.map(c => ({
@@ -291,26 +357,53 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-8 sm:mb-10">
         {/* Trend Chart */}
         <div className="md:col-span-2 lg:col-span-2 bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 p-6 sm:p-8">
-          <div className="flex items-center justify-between mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
              <div>
                 <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">Tren Laporan Masuk</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-bold uppercase tracking-widest mt-1">Aktivitas 7 Hari Terakhir</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-bold uppercase tracking-widest mt-1">
+                   {trendView === '7days' ? 'Aktivitas 7 Hari Terakhir' : 
+                    trendView === 'month' ? `Aktivitas Bulan ${selectedMonth === 'all' ? 'Ini' : ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'][parseInt(selectedMonth) - 1]}` :
+                    trendView === 'quarter' ? `Aktivitas Kuartal Tahun ${selectedYear}` :
+                    `Aktivitas Tahun ${selectedYear}`}
+                </p>
              </div>
-             <div className="hidden sm:flex items-center gap-1.5 text-xs font-black text-green-600 uppercase">
-                <TrendingUp size={14} /> +12%
+             <div className="flex items-center gap-3">
+                <select 
+                  value={trendView}
+                  onChange={(e) => setTrendView(e.target.value as any)}
+                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs rounded-xl px-3 py-2 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="7days">7 Hari Terakhir</option>
+                  <option value="month">Bulan</option>
+                  <option value="quarter">Kuartal</option>
+                  <option value="year">Tahunan</option>
+                </select>
+                <div className="hidden sm:flex items-center gap-1.5 text-xs font-black text-green-600 uppercase bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-lg">
+                   <TrendingUp size={14} /> +12%
+                </div>
              </div>
           </div>
-          <div className="h-64 sm:h-72 w-full relative">
-            <ResponsiveContainer width="99%" height="100%">
-              <BarChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.1} vertical={false} />
-                <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} />
-                <YAxis tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} allowDecimals={false} />
-                <Tooltip contentStyle={tooltipStyle} cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} />
-                <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {trendData.every(d => d.value === 0) ? (
+            <div className="h-64 sm:h-72 w-full flex flex-col items-center justify-center text-center bg-slate-50 dark:bg-slate-900/50 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700">
+              <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm mb-4">
+                <TrendingUp className="w-8 h-8 text-slate-400 dark:text-slate-500" />
+              </div>
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Belum Ada Data</p>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 max-w-[200px]">Tidak ada laporan masuk pada periode ini.</p>
+            </div>
+          ) : (
+            <div className="h-64 sm:h-72 w-full relative">
+              <ResponsiveContainer width="99%" height="100%">
+                <BarChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.1} vertical={false} />
+                  <XAxis dataKey="name" tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} />
+                  <YAxis tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} axisLine={false} allowDecimals={false} />
+                  <Tooltip contentStyle={tooltipStyle} cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} />
+                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={24} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         {/* Status Distribution Pie Chart */}
@@ -437,7 +530,7 @@ const Dashboard: React.FC = () => {
         <div className="bg-white dark:bg-slate-800 shadow-sm rounded-3xl border border-slate-100 dark:border-slate-700 overflow-hidden flex flex-col">
            <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
               <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-white tracking-tight">Aktivitas Terkini</h3>
-              <button className="text-[9px] sm:text-[10px] text-blue-600 font-black uppercase tracking-widest hover:underline">Semua</button>
+              <Link to="/admin/activities" className="text-[9px] sm:text-[10px] text-blue-600 font-black uppercase tracking-widest hover:underline">Semua</Link>
            </div>
            <div className="divide-y divide-slate-100 dark:divide-slate-700 h-[320px] overflow-y-auto">
               {combinedActivities.map((notif, i) => (

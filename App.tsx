@@ -22,6 +22,8 @@ import CMS from './pages/admin/CMS';
 import UserManagement from './pages/admin/UserManagement';
 import RoleManagement from './pages/admin/RoleManagement';
 import PermissionManagement from './pages/admin/PermissionManagement';
+import ActivityLog from './pages/admin/ActivityLog';
+import AuditLog from './pages/admin/AuditLog';
 
 const App: React.FC = () => {
   return (
@@ -47,6 +49,8 @@ const App: React.FC = () => {
           <Route path="/admin/users" element={<UserManagement />} />
           <Route path="/admin/roles" element={<RoleManagement />} />
           <Route path="/admin/permissions" element={<PermissionManagement />} />
+          <Route path="/admin/activities" element={<ActivityLog />} />
+          <Route path="/admin/audit-logs" element={<AuditLog />} />
           
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />

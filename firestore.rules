@@ -8,14 +8,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isSuperAdmin() {
+      return isAuthenticated() && request.auth.token.email == "denip23147@gmail.com" && request.auth.token.email_verified == true;
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleId != "" ||
-         (request.auth.token.email == "denip23147@gmail.com" && request.auth.token.email_verified == true));
+      return isSuperAdmin() || (isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roleId != "");
     }
 
     function hasRequiredFields(fields) {
@@ -41,6 +43,10 @@ service cloud.firestore {
     // ===============================================================
     // Rules
     // ===============================================================
+
+    match /{document=**} {
+      allow read, write: if isSuperAdmin();
+    }
 
     match /users/{userId} {
       allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
@@ -101,6 +107,16 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /commitments/{commitmentId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /epurchasing/{epurchasingId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
     match /holidays/{holidayId} {
       allow read: if true;
       allow write: if isAdmin();
@@ -109,6 +125,12 @@ service cloud.firestore {
     match /cms/{document=**} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Audit logs should be immutable
     }
   }
 }

@@ -165,6 +165,20 @@
         "description": { "type": "string" }
       },
       "required": ["name", "code"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Log of CRUD activities performed by users.",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string" },
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "action": { "type": "string", "enum": ["CREATE", "READ", "UPDATE", "DELETE"] },
+        "module": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["timestamp", "userId", "action", "module"]
     }
   },
   "firestore": {
@@ -223,6 +237,10 @@
     "/permissions/{permissionId}": {
       "schema": { "$ref": "Permission" },
       "description": "Access permissions."
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "AuditLog" },
+      "description": "Audit logs of user activities."
     }
   }
 }

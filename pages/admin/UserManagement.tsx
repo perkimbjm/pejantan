@@ -6,6 +6,7 @@ import { db, auth } from '../../src/firebase';
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, where, getDocs, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
+import { logAuditActivity, AuditAction } from '../../src/lib/auditLogger';
 import { 
   Users, 
   Plus, 
@@ -206,6 +207,7 @@ const UserManagement: React.FC = () => {
             phone: formData.phone,
             roleId: formData.roleId
           });
+          await logAuditActivity(AuditAction.UPDATE, 'Manajemen User', `Memperbarui pengguna ${formData.email}`);
         } catch (error) {
           handleFirestoreError(error, OperationType.UPDATE, `users/${currentId}`);
         }
@@ -221,6 +223,7 @@ const UserManagement: React.FC = () => {
             isBanned: false,
             createdAt: new Date().toISOString()
           });
+          await logAuditActivity(AuditAction.CREATE, 'Manajemen User', `Menambahkan pengguna ${emailLower}`);
         } catch (error) {
           handleFirestoreError(error, OperationType.CREATE, 'users');
         }
@@ -266,6 +269,7 @@ const UserManagement: React.FC = () => {
         await updateDoc(doc(db, 'users', user.id), {
           isBanned: !user.isBanned
         });
+        await logAuditActivity(AuditAction.UPDATE, 'Manajemen User', `Mengubah status blokir pengguna ${user.email} menjadi ${!user.isBanned}`);
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
       }
@@ -294,6 +298,7 @@ const UserManagement: React.FC = () => {
     try {
       try {
         await deleteDoc(doc(db, 'users', deleteConfirm.id));
+        await logAuditActivity(AuditAction.DELETE, 'Manajemen User', `Menghapus pengguna ${deleteConfirm.email}`);
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `users/${deleteConfirm.id}`);
       }

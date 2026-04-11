@@ -7,6 +7,7 @@ import StatusBadge from '../../components/StatusBadge';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query, updateDoc, doc, deleteField } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
+import { logAuditActivity, AuditAction } from '../../src/lib/auditLogger';
 import { 
   Search, 
   Filter, 
@@ -105,6 +106,7 @@ const ComplaintList: React.FC = () => {
           notes: processForm.notes || deleteField(),
           dateUpdated: new Date().toISOString()
         });
+        await logAuditActivity(AuditAction.UPDATE, 'Aduan', `Memperbarui status aduan ${selectedComplaint.ticketNumber || selectedComplaint.id.substring(0, 8)} menjadi ${processForm.status}`);
       } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `complaints/${selectedComplaint.id}`);
       }

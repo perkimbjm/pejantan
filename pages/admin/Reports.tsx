@@ -242,46 +242,20 @@ const Reports: React.FC = () => {
   const handleCommitmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setUploadProgress(0);
 
     try {
-      let documentUrl = editingItem?.documentUrl || null;
-
-      if (selectedFile) {
-        const storageRef = ref(storage, `commitments/${Date.now()}_${selectedFile.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, selectedFile);
-
-        documentUrl = await new Promise((resolve, reject) => {
-          uploadTask.on('state_changed', 
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setUploadProgress(progress);
-            }, 
-            (error) => reject(error), 
-            async () => {
-              const url = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(url);
-            }
-          );
-        });
-      }
-
       if (editingItem) {
         await updateDoc(doc(db, 'commitments', editingItem.id), {
           ...commitmentForm,
-          documentUrl,
           updatedAt: serverTimestamp()
         });
       } else {
         await addDoc(collection(db, 'commitments'), {
           ...commitmentForm,
-          documentUrl,
           createdAt: serverTimestamp()
         });
       }
       setIsCommitmentModalOpen(false);
-      setSelectedFile(null);
-      setUploadProgress(null);
       toast.success(editingItem ? 'Komitmen berhasil diperbarui' : 'Komitmen berhasil ditambahkan');
     } catch (error) {
       handleFirestoreError(error, editingItem ? OperationType.UPDATE : OperationType.CREATE, 'commitments');
@@ -1088,30 +1062,6 @@ const Reports: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-1">Dokumen Pendukung (PDF/Gambar)</label>
-                <div className="relative">
-                  <input 
-                    type="file" 
-                    onChange={e => setSelectedFile(e.target.files?.[0] || null)}
-                    className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 dark:bg-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-xs"
-                    accept=".pdf,image/*"
-                  />
-                  {editingItem?.documentUrl && !selectedFile && (
-                    <p className="mt-1 text-[10px] text-blue-500 font-bold">Dokumen saat ini tersedia</p>
-                  )}
-                </div>
-              </div>
-
-              {uploadProgress !== null && (
-                <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 mt-2">
-                  <div 
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
-                  <p className="text-[9px] font-black text-blue-600 mt-1 uppercase">Mengupload: {Math.round(uploadProgress)}%</p>
-                </div>
-              )}
               <div className="pt-4 flex justify-end gap-3">
                 <button 
                   type="button"

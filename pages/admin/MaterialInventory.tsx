@@ -5,6 +5,7 @@ import { Material } from '../../types';
 import { db } from '../../src/firebase';
 import { collection, onSnapshot, query, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../../src/lib/firestoreErrorHandler';
+import { logAuditActivity, AuditAction } from '../../src/lib/auditLogger';
 import { 
   AlertTriangle, 
   AlertCircle, 
@@ -131,6 +132,7 @@ const MaterialInventory: React.FC = () => {
     try {
       try {
         await deleteDoc(doc(db, 'materials', itemToDelete.id));
+        await logAuditActivity(AuditAction.DELETE, 'Stok Material', `Menghapus material ${itemToDelete.name}`);
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `materials/${itemToDelete.id}`);
       }
@@ -156,12 +158,14 @@ const MaterialInventory: React.FC = () => {
       if (isEditing && currentId) {
         try {
           await updateDoc(doc(db, 'materials', currentId), materialData);
+          await logAuditActivity(AuditAction.UPDATE, 'Stok Material', `Memperbarui material ${materialData.name}`);
         } catch (error) {
           handleFirestoreError(error, OperationType.UPDATE, `materials/${currentId}`);
         }
       } else {
         try {
           await addDoc(collection(db, 'materials'), materialData);
+          await logAuditActivity(AuditAction.CREATE, 'Stok Material', `Menambahkan material ${materialData.name}`);
         } catch (error) {
           handleFirestoreError(error, OperationType.CREATE, 'materials');
         }
